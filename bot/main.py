@@ -12,7 +12,7 @@ from bot.models.engine import init_db, close_db
 from bot.handlers import (
     start, search, recommend, watchlist, watched,
     where, compare, explain, stats, alerts,
-    random as random_handler, mood, inline, redeem, admin, callbacks,
+    random as random_handler, mood, inline, redeem, admin, callbacks, contact,
 )
 from bot.jobs.daily_suggestion import daily_suggestion_job
 from bot.jobs.release_alerts import release_alerts_job
@@ -41,6 +41,7 @@ BOT_COMMANDS = [
     BotCommand("mood", "Mood-based picks"),
     BotCommand("redeem", "Redeem a Pro key"),
     BotCommand("pro", "View your plan"),
+    BotCommand("contact", "Contact admin support"),
 ]
 
 
@@ -75,6 +76,12 @@ async def error_handler(update: object, context) -> None:
 
 async def text_message_handler(update: Update, context) -> None:
     if not update.message or not update.message.text:
+        return
+
+    replying_ticket = context.user_data.get("replying_ticket")
+    if replying_ticket:
+        from bot.handlers.contact import admin_reply_handler
+        await admin_reply_handler(update, context)
         return
 
     awaiting_review = context.user_data.get("awaiting_review_for")
@@ -161,7 +168,7 @@ def _register_handlers(app: Application) -> None:
     handler_modules = [
         start, search, recommend, watchlist, watched,
         where, compare, explain, stats, alerts,
-        random_handler, mood, inline, redeem, admin, callbacks,
+        random_handler, mood, inline, redeem, admin, contact, callbacks,
     ]
     for module in handler_modules:
         for handler in module.get_handlers():
