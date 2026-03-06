@@ -4,10 +4,9 @@ from bot.utils.constants import (
     E_MOVIE, E_STAR, E_CLOCK, E_GLOBE, E_TROPHY, E_CHECK, E_CHART,
     E_CALENDAR, E_PIN, E_CROWN, E_SPARKLE, E_FIRE, E_FILM, E_TV,
     E_HEART, E_LIST, E_BELL, E_PERSON, E_PEOPLE, E_KEY, E_INFO,
-    TMDB_GENRES, MILESTONES,
+    E_BRAIN, TMDB_GENRES, MILESTONES,
 )
 from bot.utils.validators import sanitize_html
-
 
 def format_movie_card(movie: dict) -> str:
     title = sanitize_html(movie.get("title", "Unknown"))
