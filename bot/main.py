@@ -2,7 +2,7 @@
 import logging
 import sys
 from datetime import time, timezone
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, LinkPreviewOptions
 from telegram.ext import (
     Application, ApplicationBuilder, CommandHandler,
     CallbackQueryHandler, MessageHandler, filters, Defaults,
@@ -213,7 +213,10 @@ def build_application() -> Application:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.WARNING)
 
-    defaults = Defaults(parse_mode="HTML", disable_web_page_preview=True)
+    defaults = Defaults(
+        parse_mode="HTML",
+        link_preview_options=LinkPreviewOptions(is_disabled=True)
+    )
 
     builder = (
         ApplicationBuilder()
