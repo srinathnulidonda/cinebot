@@ -12,3 +12,6 @@ alembic
 greenlet
 psycopg2-binary
 gunicorn
+google-generativeai
+groq
+cohere

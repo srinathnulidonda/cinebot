@@ -1,12 +1,14 @@
 # bot/handlers/admin.py
 import logging
 import io
+from math import ceil
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from bot.middleware.admin_check import admin_only
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.analytics import track_command, get_daily_stats
 from bot.services import key_service
+from bot.services import ai_service
 from bot.models.engine import get_session
 from bot.models.user import UserRepo
 from bot.models.database import SubscriptionTier
@@ -14,7 +16,7 @@ from bot.utils.formatters import format_key_info, format_user_info
 from bot.utils.keyboards import admin_dashboard_kb, pagination_kb
 from bot.utils.key_generator import format_key_display, format_keys_file
 from bot.utils.validators import validate_key_format, validate_key_type, validate_quantity, validate_batch_name
-from bot.utils.constants import E_GEAR, E_KEY, E_CHECK, E_CROSS, E_CHART, E_PERSON, E_SEND, KEY_TYPES
+from bot.utils.constants import E_GEAR, E_KEY, E_CHECK, E_CROSS, E_CHART, E_PERSON, E_SEND, E_ROBOT, KEY_TYPES
 from bot import CineBotError
 
 logger = logging.getLogger(__name__)
@@ -166,7 +168,6 @@ async def listkeys_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         for k in keys:
             status_emoji = {"UNUSED": "🟢", "USED": "🔵", "EXPIRED": "🟡", "REVOKED": "🔴"}.get(k.status.value, "⚪")
             lines.append(f"  {status_emoji} <code>{k.key}</code> | {k.key_type} | {k.status.value}")
-        from math import ceil
         total_pages = max(1, ceil(total / 10))
         lines.append(f"\nPage {page}/{total_pages}")
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
@@ -277,6 +278,35 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 @admin_only
+async def aistatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await ensure_user(update, context)
+    await track_command(update, context)
+    status = await ai_service.get_status()
+    lines = [f"{E_ROBOT} <b>AI Provider Status</b>\n"]
+    for name, info in status.items():
+        if name == "_total":
+            continue
+        usage = info["usage"]
+        limit = info["limit"]
+        remaining = info["remaining"]
+        if info["exhausted"]:
+            emoji = "🔴"
+            suffix = " — EXHAUSTED"
+        elif remaining < limit * 0.1:
+            emoji = "🟡"
+            suffix = " — LOW"
+        else:
+            emoji = "🟢"
+            suffix = ""
+        lines.append(f"  {emoji} <b>{name}</b>: {usage}/{limit} ({remaining} left{suffix})")
+    total = status.get("_total", {})
+    lines.append(f"\n📊 <b>Total remaining:</b> {total.get('remaining', 0)}/{total.get('limit', 0)}")
+    pct = (total.get("remaining", 0) / max(total.get("limit", 1), 1)) * 100
+    lines.append(f"⚡ <b>Capacity:</b> {pct:.1f}%")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+@admin_only
 async def admin_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -285,6 +315,8 @@ async def admin_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         pro_users = await UserRepo.get_pro_user_count(session)
     key_stats = await key_service.get_key_stats()
     daily = await get_daily_stats()
+    ai_status = await ai_service.get_status()
+    ai_total = ai_status.get("_total", {})
     text = (
         f"{E_CHART} <b>Admin Stats</b>\n\n"
         f"<b>Users:</b>\n"
@@ -296,6 +328,8 @@ async def admin_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         f"  🟡 Expired: {key_stats.get('EXPIRED', 0)}\n"
         f"  🔴 Revoked: {key_stats.get('REVOKED', 0)}\n"
         f"  📊 Total: {key_stats.get('TOTAL', 0)}\n\n"
+        f"<b>AI Capacity:</b>\n"
+        f"  🤖 Remaining: {ai_total.get('remaining', 0)}/{ai_total.get('limit', 0)}\n\n"
         f"<b>Today:</b>\n"
         f"  📨 Commands: {daily.get('total_commands', 0)}\n"
         f"  👤 Active users: {daily.get('unique_users', 0)}"
@@ -358,5 +392,6 @@ def get_handlers() -> list:
         CommandHandler("userlookup", userlookup_command),
         CommandHandler("giftkey", giftkey_command),
         CommandHandler("broadcast", broadcast_command),
+        CommandHandler("aistatus", aistatus_command),
         CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm:"),
     ]

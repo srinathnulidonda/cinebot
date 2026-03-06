@@ -7,7 +7,8 @@ from bot.middleware.rate_limiter import check_rate_limit, increment_usage
 from bot.middleware.analytics import track_command
 from bot.models.engine import get_session
 from bot.models.user import UserRepo
-from bot.services import tmdb_service, openai_service
+from bot.services import tmdb_service
+from bot.services import ai_service
 from bot.utils.keyboards import explain_type_kb, search_results_kb
 from bot.utils.constants import E_ROBOT
 from bot import CineBotError
@@ -94,7 +95,7 @@ async def explain_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         title = movie.get("title", "Unknown")
         year = movie.get("release_date", "")[:4]
         overview = movie.get("overview", "")
-        explanation = await openai_service.explain_movie(title, year, overview, explain_type)
+        explanation = await ai_service.explain_movie(title, year, overview, explain_type)
         await increment_usage(telegram_id, "explain")
         text = f"🎬 <b>{title}</b> ({year})\n\n{explanation}"
         if len(text) > 4096:

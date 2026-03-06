@@ -1,6 +1,6 @@
 # bot/handlers/recommend.py
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.rate_limiter import check_rate_limit, increment_usage
@@ -12,7 +12,6 @@ from bot.utils.formatters import format_recommendation_list
 from bot.utils.keyboards import recommend_type_kb, mood_kb, search_results_kb
 from bot.utils.constants import E_BRAIN, TMDB_GENRES
 from bot import CineBotError
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 

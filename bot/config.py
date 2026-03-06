@@ -20,9 +20,14 @@ class Settings(BaseSettings):
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
     TMDB_IMG_BASE: str = "https://image.tmdb.org/t/p"
 
-    OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4o-mini"
-    OPENAI_MAX_TOKENS: int = 1500
+    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    MISTRAL_API_KEY: str = ""
+    COHERE_API_KEY: str = ""
+    HUGGINGFACE_API_KEY: str = ""
+    CLOUDFLARE_ACCOUNT_ID: str = ""
+    CLOUDFLARE_API_KEY: str = ""
 
     YOUTUBE_API_KEY: str
     YOUTUBE_BASE_URL: str = "https://www.googleapis.com/youtube/v3"

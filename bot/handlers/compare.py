@@ -4,10 +4,11 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.analytics import track_command
-from bot.services import tmdb_service, openai_service
+from bot.services import tmdb_service
+from bot.services import ai_service
 from bot.utils.formatters import format_comparison
 from bot.utils.validators import parse_compare_query
-from bot.utils.constants import E_TROPHY, TMDB_GENRES
+from bot.utils.constants import E_TROPHY
 from bot import CineBotError
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ async def compare_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         movie_b["genres_text"] = ", ".join(g["name"] for g in movie_b.get("genres", []))
 
         try:
-            ai_analysis = await openai_service.compare_movies(movie_a, movie_b)
+            ai_analysis = await ai_service.compare_movies(movie_a, movie_b)
             comparison_text += f"\n\n🤖 <b>AI Analysis:</b>\n{ai_analysis}"
         except Exception:
             pass

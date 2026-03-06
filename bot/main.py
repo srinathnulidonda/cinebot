@@ -141,15 +141,18 @@ async def text_message_handler(update: Update, context) -> None:
 
 async def post_init(application: Application) -> None:
     await init_db()
+    from bot.services import ai_service
+    ai_service._init_providers()
     await application.bot.set_my_commands(BOT_COMMANDS)
     logger.info("Bot initialized, database ready, commands set")
 
 
 async def post_shutdown(application: Application) -> None:
-    from bot.services import tmdb_service, youtube_service, streaming_service
+    from bot.services import tmdb_service, youtube_service, streaming_service, ai_service
     await tmdb_service.close()
     await youtube_service.close()
     await streaming_service.close()
+    await ai_service.close()
     await close_db()
     logger.info("Bot shutdown complete")
 

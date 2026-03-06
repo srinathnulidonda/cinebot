@@ -5,7 +5,6 @@ from telegram.ext import ContextTypes, CommandHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.analytics import track_command
 from bot.utils.keyboards import mood_kb
-from bot.utils.constants import E_BRAIN
 
 logger = logging.getLogger(__name__)
 
