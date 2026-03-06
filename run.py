@@ -23,15 +23,15 @@ def start_health_server():
 
 
 def main():
-    health_thread = threading.Thread(target=start_health_server, daemon=True)
-    health_thread.start()
-
     from bot.config import get_settings
     settings = get_settings()
+
     if settings.USE_WEBHOOK:
         from bot.main import run_webhook
         run_webhook()
     else:
+        health_thread = threading.Thread(target=start_health_server, daemon=True)
+        health_thread.start()
         from bot.main import run_polling
         run_polling()
 
