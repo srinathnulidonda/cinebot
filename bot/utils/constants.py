@@ -44,21 +44,16 @@ E_BOLT = "⚡"
 E_PHONE = "📞"
 E_SHIELD = "🛡️"
 E_WAIT = "⏳"
-E_DB = "🗄️"
 E_SERVER = "🖥️"
-E_PING = "📡"
-E_GREEN = "🟢"
-E_YELLOW = "🟡"
-E_RED = "🔴"
 
 # Mobile-friendly separators
 LINE = "─ ─ ─ ─ ─ ─ ─ ─"
-LINE_LIGHT = "· · · · · · · ·"
+LINE_LIGHT = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
 
-BADGE_PRO = "👑"
-BADGE_HOT = "🔥"
-BADGE_NEW = "✨"
-BADGE_TOP = "⭐"
+BADGE_PRO = "「👑 ᴘʀᴏ」"
+BADGE_HOT = "「🔥 ʜᴏᴛ」"
+BADGE_NEW = "「✨ ɴᴇᴡ」"
+BADGE_TOP = "「⭐ ᴛᴏᴘ」"
 
 TMDB_GENRES = {
     28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
@@ -103,117 +98,123 @@ MILESTONES = [1, 5, 10, 25, 50, 100, 250, 500, 1000]
 
 MSG_WELCOME = (
     f"{E_MOVIE} <b>CINEBOT</b> {E_POPCORN}\n"
-    f"{LINE}\n\n"
-    f"<b>◆ Discover</b>\n"
-    f"{E_SEARCH} /search - Find movies\n"
-    f"{E_BRAIN} /recommend - AI picks\n"
-    f"{E_DICE} /random - Surprise me\n"
-    f"😊 /mood - Match vibe\n\n"
-    f"<b>◆ Library</b>\n"
-    f"{E_LIST} /watchlist - Save later\n"
-    f"{E_CHECK} /watched - Diary\n"
-    f"{E_CHART} /stats - Stats\n\n"
-    f"<b>◆ Explore</b>\n"
-    f"{E_TV} /where - Streaming\n"
-    f"{E_TROPHY} /compare - Head2Head\n"
-    f"{E_BRAIN} /explain - AI dive\n"
-    f"{E_BELL} /alerts - Releases\n\n"
-    f"<b>◆ Account</b>\n"
-    f"{E_KEY} /redeem - Pro key\n"
-    f"{E_CROWN} /pro - Plan\n"
-    f"{E_PHONE} /contact - Support\n\n"
+    f"{LINE}\n"
+    "Your AI-powered movie companion\n\n"
+    "─── ◆ Discover ◆ ───\n"
+    f"{E_SEARCH} /search — Find any movie\n"
+    f"{E_BRAIN} /recommend — AI picks for you\n"
+    f"{E_DICE} /random — Surprise me\n"
+    "😊 /mood — Match your vibe\n\n"
+    "─── ◆ Library ◆ ───\n"
+    f"{E_LIST} /watchlist — Save for later\n"
+    f"{E_CHECK} /watched — Movie diary\n"
+    f"{E_CHART} /stats — Your stats\n\n"
+    "─── ◆ Explore ◆ ───\n"
+    f"{E_TV} /where — Where to stream\n"
+    f"{E_TROPHY} /compare — Head to head\n"
+    f"{E_BRAIN} /explain — AI deep dive\n"
+    f"{E_BELL} /alerts — Release alerts\n\n"
+    "─── ◆ Account ◆ ───\n"
+    f"{E_KEY} /redeem — Activate Pro\n"
+    f"{E_CROWN} /pro — Your plan\n"
+    f"{E_PHONE} /contact — Reach us\n\n"
     f"{LINE_LIGHT}\n"
-    f"💡 Type movie name to search"
+    f"💡 Type any movie name to search instantly"
 )
 
 MSG_HELP = (
-    f"{E_INFO} <b>HELP</b>\n"
+    f"{E_INFO} <b>CINEBOT HELP</b>\n"
     f"{LINE}\n\n"
-    f"<b>◆ Search</b>\n"
-    f"{E_SEARCH} /search <code>name</code>\n"
-    f"{E_BRAIN} /recommend\n"
-    f"{E_DICE} /random\n"
-    f"😊 /mood\n\n"
-    f"<b>◆ Library</b>\n"
-    f"{E_LIST} /watchlist\n"
-    f"{E_CHECK} /watched\n"
-    f"{E_CHART} /stats\n\n"
-    f"<b>◆ Intel</b>\n"
-    f"{E_TV} /where <code>name</code>\n"
-    f"{E_TROPHY} /compare <code>A vs B</code>\n"
-    f"{E_BRAIN} /explain <code>name</code>\n\n"
-    f"<b>◆ Account</b>\n"
-    f"{E_KEY} /redeem <code>KEY</code>\n"
-    f"{E_CROWN} /pro\n"
-    f"{E_BELL} /alerts\n"
-    f"{E_PHONE} /contact\n\n"
+    "─── ◆ Search & Discovery ◆ ───\n"
+    f"  {E_SEARCH} /search <code>name</code> — Movie details\n"
+    f"  {E_BRAIN} /recommend — Personalized picks\n"
+    f"  {E_DICE} /random — Random suggestion\n"
+    "  😊 /mood — Mood-based picks\n\n"
+    "─── ◆ Your Library ◆ ───\n"
+    f"  {E_LIST} /watchlist — Watch-later list\n"
+    f"  {E_CHECK} /watched — Movie diary\n"
+    f"  {E_CHART} /stats — Viewing stats\n\n"
+    "─── ◆ Movie Intel ◆ ───\n"
+    f"  {E_TV} /where <code>name</code> — Streaming info\n"
+    f"  {E_TROPHY} /compare <code>A vs B</code> — Compare\n"
+    f"  {E_BRAIN} /explain <code>name</code> — AI analysis\n\n"
+    "─── ◆ Account ◆ ───\n"
+    f"  {E_KEY} /redeem <code>KEY</code> — Activate Pro\n"
+    f"  {E_CROWN} /pro — Plan & usage\n"
+    f"  {E_BELL} /alerts — Release alerts\n"
+    f"  {E_PHONE} /contact — Support\n\n"
     f"{LINE_LIGHT}\n"
-    f"💡 Inline: @YourBot movie"
+    "💡 <b>Inline:</b> Type <code>@YourBot movie</code> in any chat"
 )
 
 MSG_ONBOARDING_GENRES = (
-    f"{E_MOVIE} <b>Personalize!</b>\n"
+    f"{E_MOVIE} <b>Let's personalize your experience!</b>\n"
     f"{LINE}\n\n"
-    "Pick favorite genres (2+):"
+    "Pick your favorite genres (at least 2):"
 )
 
 MSG_RATE_LIMITED = (
     f"{E_WAIT} <b>Slow down!</b>\n\n"
-    "Try in 10 seconds."
+    "Try again in 10 seconds."
 )
 
 MSG_PRO_REQUIRED = (
     f"{E_LOCK} <b>PRO Feature</b>\n"
     f"{LINE}\n\n"
-    f"{E_SPARKLE} Unlimited all\n"
+    f"{E_SPARKLE} Unlimited searches & recs\n"
+    f"{E_SPARKLE} Unlimited explains\n"
+    f"{E_SPARKLE} Unlimited watchlist\n"
     f"{E_SPARKLE} Priority support\n\n"
-    f"{E_KEY} /redeem or {E_PHONE} /contact"
+    f"{E_KEY} Use /redeem or {E_PHONE} /contact"
 )
 
 MSG_KEY_REDEEMED = (
-    f"{E_PARTY} <b>REDEEMED!</b>\n"
+    f"{E_PARTY} <b>KEY REDEEMED!</b>\n"
     f"{LINE}\n\n"
     f"{E_CROWN} Plan: <b>PRO</b>\n"
     f"{E_CALENDAR} Duration: <b>{{duration}}</b>\n"
     f"{E_WAIT} Expires: <b>{{expires}}</b>\n\n"
-    f"{E_SPARKLE} Unlimited access! {E_POPCORN}"
+    f"{E_SPARKLE} Unlimited access unlocked! {E_POPCORN}"
 )
 
 MSG_EXPIRY_WARNING = (
-    f"{E_WARN} <b>EXPIRING</b>\n"
+    f"{E_WARN} <b>SUBSCRIPTION EXPIRING</b>\n"
     f"{LINE}\n\n"
-    f"{E_WAIT} In <b>{{days}} day(s)</b>\n"
+    f"{E_WAIT} Expires in <b>{{days}} day(s)</b>\n"
     f"{E_CALENDAR} Date: <b>{{date}}</b>\n\n"
-    f"{E_KEY} /redeem to extend"
+    f"{E_KEY} /redeem to extend\n"
+    f"{E_PHONE} /contact to renew"
 )
 
 MSG_EXPIRED = (
-    f"{E_INFO} <b>Expired</b>\n"
+    f"{E_INFO} <b>Subscription Expired</b>\n"
     f"{LINE}\n\n"
-    "Pro ended → Free plan\n\n"
-    f"{E_KEY} /redeem new key\n"
+    "Your Pro plan has ended.\n"
+    "You're now on the Free plan.\n\n"
+    f"{E_KEY} /redeem a new key to reactivate\n"
     f"{E_PHONE} /contact for help"
 )
 
 MSG_NO_RESULTS = (
-    f"{E_SEARCH} <b>Not Found</b>\n\n"
+    f"{E_SEARCH} <b>Nothing Found</b>\n\n"
     "Can't find that 🙈\n\n"
-    "💡 Check spelling"
+    "💡 Check spelling or try the English title"
 )
 
 MSG_WATCHLIST_EMPTY = (
-    f"{E_LIST} <b>Empty</b>\n\n"
-    f"Use /search to add movies"
+    f"{E_LIST} <b>Nothing here yet</b> — let's fix that! {E_MOVIE}\n\n"
+    f"Use /search to find movies to save"
 )
 
 MSG_WATCHED_EMPTY = (
-    f"{E_FILM} <b>No movies yet</b>\n\n"
-    f"Use /search to start {E_POPCORN}"
+    f"{E_FILM} <b>No movies logged yet</b>\n\n"
+    "Mark a movie as watched after you see it!\n"
+    f"Use /search to get started {E_POPCORN}"
 )
 
 MSG_MILESTONE = (
     f"{E_PARTY} <b>MILESTONE!</b>\n"
     f"{LINE}\n\n"
-    f"<b>{{count}}</b> movies! {E_CLAP}\n"
-    "Keep going! 🍿"
+    f"You've watched <b>{{count}}</b> movies! {E_CLAP}\n"
+    "Keep the streak going! 🍿"
 )

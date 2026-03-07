@@ -5,7 +5,7 @@ from bot.utils.constants import (
     E_CALENDAR, E_CROWN, E_SPARKLE, E_FIRE, E_FILM, E_TV,
     E_LIST, E_PERSON, E_KEY, E_BRAIN, E_WARN, E_PHONE, E_WAIT,
     E_ROBOT, E_SEARCH, E_INFO, E_PARTY, E_CLAP, E_POPCORN, E_SHIELD,
-    E_DB, E_SERVER, E_PING, E_GREEN, E_YELLOW, E_RED, E_BOLT,
+    E_SERVER,
     LINE, LINE_LIGHT, BADGE_PRO, BADGE_HOT, BADGE_NEW, BADGE_TOP,
     TMDB_GENRES, MILESTONES, FREE_LIMITS,
 )
@@ -13,10 +13,10 @@ from bot.utils.validators import sanitize_html
 
 
 def section(title: str) -> str:
-    return f"<b>◆ {title}</b>"
+    return f"─── ◆ {title} ◆ ───"
 
 
-def progress_bar(current: int, maximum: int, length: int = 8) -> str:
+def progress_bar(current: int, maximum: int, length: int = 10) -> str:
     if maximum <= 0:
         return "░" * length
     filled = min(length, int((current / maximum) * length))
@@ -42,7 +42,7 @@ def genre_tags(genre_ids: list[int] | None = None, genres: list[dict] | None = N
         names = [TMDB_GENRES.get(g, "") for g in genre_ids if g in TMDB_GENRES]
     elif genres:
         names = [g["name"] for g in genres]
-    return " ".join(f"#{n}" for n in names[:3] if n) if names else ""
+    return " ".join(f"⌈{n}⌋" for n in names[:4] if n) if names else ""
 
 
 def movie_badges(movie: dict) -> str:
@@ -61,7 +61,7 @@ def movie_badges(movie: dict) -> str:
                 badges.append(BADGE_NEW)
         except ValueError:
             pass
-    return "".join(badges[:2])
+    return " ".join(badges[:2])
 
 
 def format_movie_card(movie: dict) -> str:
@@ -69,9 +69,9 @@ def format_movie_card(movie: dict) -> str:
     year = movie.get("release_date", "")[:4] or "?"
     rating = movie.get("vote_average", 0)
     votes = movie.get("vote_count", 0)
-    overview = sanitize_html(movie.get("overview", "No overview."))
-    if len(overview) > 280:
-        overview = overview[:277] + "..."
+    overview = sanitize_html(movie.get("overview", "No overview available."))
+    if len(overview) > 350:
+        overview = overview[:347] + "..."
 
     tags = genre_tags(movie.get("genre_ids"), movie.get("genres"))
     badges = movie_badges(movie)
@@ -79,22 +79,28 @@ def format_movie_card(movie: dict) -> str:
 
     runtime = movie.get("runtime")
     lang = (movie.get("original_language") or "").upper()
+    rd = movie.get("release_date", "")
 
-    meta = []
+    meta_parts = []
     if runtime:
-        meta.append(f"{E_CLOCK}{runtime}m")
+        meta_parts.append(f"{E_CLOCK} <b>{runtime}m</b>")
+    if rd:
+        meta_parts.append(f"{E_CALENDAR} {rd}")
     if lang:
-        meta.append(f"{E_GLOBE}{lang}")
-    meta_line = " ".join(meta)
+        meta_parts.append(f"{E_GLOBE} {lang}")
+    meta_line = " · ".join(meta_parts)
 
-    text = f"{E_MOVIE} <b>{title}</b> ({year}) {badges}\n"
+    badge_str = f"  {badges}" if badges else ""
+
+    text = f"{E_MOVIE} <b>{title}</b> ({year}){badge_str}\n"
     text += f"{LINE}\n"
-    text += f"{E_STAR} <b>{rating:.1f}</b> {stars} · {format_votes(votes)}\n"
+    text += f"{E_STAR} <b>{rating:.1f}</b>/10 {stars} · 🗳 {format_votes(votes)}\n"
     if tags:
         text += f"🎭 {tags}\n"
     if meta_line:
         text += f"{meta_line}\n"
-    text += f"\n{overview}"
+    text += f"\n{section('Synopsis')}\n"
+    text += overview
     return text
 
 
@@ -102,19 +108,19 @@ def format_movie_short(movie: dict) -> str:
     title = sanitize_html(movie.get("title", "Unknown"))
     year = movie.get("release_date", "")[:4] or "?"
     rating = movie.get("vote_average", 0)
-    return f"{E_MOVIE} <b>{title}</b> ({year}) {E_STAR}{rating:.1f}"
+    return f"{E_MOVIE} <b>{title}</b> ({year}) · {E_STAR} {rating:.1f}"
 
 
 def format_movie_credits(credits: dict) -> str:
-    cast = credits.get("cast", [])[:4]
+    cast = credits.get("cast", [])[:5]
     directors = [c for c in credits.get("crew", []) if c.get("job") == "Director"]
     lines = [section("Cast & Crew")]
     if directors:
         names = ", ".join(sanitize_html(d["name"]) for d in directors[:2])
-        lines.append(f"🎥 {names}")
+        lines.append(f"🎥 <b>ᴅɪʀᴇᴄᴛᴏʀ:</b> {names}")
     if cast:
         names = ", ".join(sanitize_html(a["name"]) for a in cast)
-        lines.append(f"🌟 {names}")
+        lines.append(f"🌟 <b>ᴄᴀsᴛ:</b> {names}")
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
@@ -126,103 +132,118 @@ def format_comparison(a: dict, b: dict) -> str:
     winner = a if sa >= sb else b
     wt = sanitize_html(winner.get("title", ""))
 
-    def side(m, emoji):
-        t = sanitize_html(m.get("title", "?"))
+    def side(m, color):
+        t = sanitize_html(m.get("title", "Unknown"))
         y = m.get("release_date", "")[:4] or "?"
         r = m.get("vote_average", 0)
+        v = m.get("vote_count", 0)
         rt = m.get("runtime", "?")
-        return f"{emoji} <b>{t}</b> ({y})\n   {E_STAR}{r:.1f} · {rt}m"
+        tags = genre_tags(m.get("genre_ids"), m.get("genres"))
+        return (
+            f"{color} <b>{t}</b> ({y})\n"
+            f"   {E_STAR} <b>{r:.1f}</b>/10 · 🗳 {format_votes(v)}\n"
+            f"   {E_CLOCK} {rt}m · {tags}"
+        )
 
     return (
-        f"{E_TROPHY} <b>SHOWDOWN</b>\n"
+        f"{E_TROPHY} <b>MOVIE SHOWDOWN</b>\n"
         f"{LINE}\n\n"
         f"{side(a, '🔵')}\n\n"
-        f"⚔️ VS ⚔️\n\n"
+        f"          ⚔️  VS  ⚔️\n\n"
         f"{side(b, '🔴')}\n\n"
         f"{LINE}\n"
-        f"{E_TROPHY} <b>{wt}</b> wins!"
+        f"{E_TROPHY} <b>Winner: {wt}</b> {E_SPARKLE}"
     )
 
 
 def format_watchlist_item(item, idx: int) -> str:
     pri = {"HIGH": "🔴", "MED": "🟡", "LOW": "🟢"}.get(item.priority.value, "⚪")
-    title = sanitize_html(item.movie_title)[:25]
-    return f"{idx}. {pri} <b>{title}</b>"
+    title = sanitize_html(item.movie_title)
+    return f"{idx}. {pri} <b>{title}</b> (ID: {item.tmdb_movie_id})"
 
 
 def format_watched_item(item, idx: int) -> str:
-    title = sanitize_html(item.movie_title)[:22]
-    rating_str = f"{E_STAR}{item.user_rating}" if item.user_rating else "—"
-    date_str = item.watched_at.strftime("%m/%d") if item.watched_at else ""
-    return f"{idx}. {E_FILM} <b>{title}</b> {rating_str} {date_str}"
+    title = sanitize_html(item.movie_title)
+    rating_str = f"{E_STAR} {item.user_rating}/10" if item.user_rating else "unrated"
+    date_str = item.watched_at.strftime("%b %d") if item.watched_at else ""
+    return f"{idx}. {E_FILM} <b>{title}</b> — {rating_str} · {date_str}"
 
 
 def format_stats(stats: dict) -> str:
     total = stats.get("total_watched", 0)
     avg = stats.get("avg_rating", 0)
-    genre_bars = stats.get("genre_bars", "No data.")
-    best = sanitize_html(stats.get("best", "N/A"))[:20]
+    genre_bars = stats.get("genre_bars", "No data yet.")
+    best = sanitize_html(stats.get("best", "N/A"))
     month = stats.get("active_month", "N/A")
 
     return (
-        f"{E_CHART} <b>STATS</b>\n"
+        f"{E_CHART} <b>YOUR STATS</b>\n"
         f"{LINE}\n\n"
-        f"{E_FILM} Watched: <b>{total}</b>\n"
-        f"{E_STAR} Avg: <b>{avg:.1f}</b>\n"
-        f"{E_CROWN} Best: <b>{best}</b>\n"
-        f"{E_CALENDAR} Active: <b>{month}</b>\n\n"
-        f"{section('Genres')}\n"
+        f"{E_FILM} Movies watched: <b>{total}</b>\n"
+        f"{E_STAR} Average rating: <b>{avg:.1f}</b>/10\n"
+        f"{E_CROWN} Highest rated: <b>{best}</b>\n"
+        f"{E_CALENDAR} Most active: <b>{month}</b>\n\n"
+        f"{section('Genre Breakdown')}\n"
         f"{genre_bars}"
     )
 
 
-def build_genre_bars(genre_counts: dict[str, int], top_n: int = 6) -> str:
+def build_genre_bars(genre_counts: dict[str, int], top_n: int = 8) -> str:
     if not genre_counts:
-        return "No data."
+        return "No data yet."
     sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:top_n]
     max_count = sorted_genres[0][1] if sorted_genres else 1
     lines = []
     for gid, count in sorted_genres:
-        name = TMDB_GENRES.get(int(gid), f"#{gid}")[:8]
-        bar = progress_bar(count, max_count, 6)
-        lines.append(f"{name}: {bar} {count}")
+        name = TMDB_GENRES.get(int(gid), f"#{gid}")
+        bar = progress_bar(count, max_count, 10)
+        lines.append(f"  {name}: {bar} {count}")
     return "\n".join(lines)
 
 
 def format_streaming(data: dict | None, country: str = "US") -> str:
     if not data:
-        return f"{E_TV} <b>No streaming info</b>\n💡 Try JustWatch"
-    lines = [f"{section(f'Watch ({country})')}"]
+        return (
+            f"{E_TV} <b>No streaming info available</b>\n\n"
+            f"💡 Try checking JustWatch for this title"
+        )
+    lines = [
+        f"{E_TV} <b>WHERE TO WATCH</b> ({country})",
+        LINE,
+    ]
     sections_data = [
-        ("flatrate", "📺"),
-        ("rent", "💲"),
-        ("buy", "🛒"),
+        ("flatrate", "📺 Stream"),
+        ("rent", "💲 Rent"),
+        ("buy", "🛒 Buy"),
     ]
     found = False
-    for key, emoji in sections_data:
+    for key, label in sections_data:
         providers = data.get(key, [])
         if providers:
-            names = ", ".join(p.get("provider_name", "?") for p in providers[:4])
-            lines.append(f"{emoji} {names}")
+            names = ", ".join(p.get("provider_name", "?") for p in providers[:5])
+            lines.append(f"  {label}: {names}")
             found = True
     if not found:
-        lines.append("No options found.")
+        lines.append("  No options found for this region.")
     return "\n".join(lines)
 
 
-def format_recommendation_list(movies: list[dict], title: str = "Picks") -> str:
-    lines = [f"{E_BRAIN} <b>{title}</b>", LINE]
+def format_recommendation_list(movies: list[dict], title: str = "Recommendations") -> str:
+    lines = [
+        f"{E_BRAIN} <b>{title}</b>",
+        LINE,
+    ]
     for i, m in enumerate(movies, 1):
-        t = sanitize_html(m.get("title", "?"))[:22]
+        t = sanitize_html(m.get("title", "Unknown"))
         y = m.get("release_date", "")[:4] or "?"
         r = m.get("vote_average", 0)
         conf = m.get("confidence")
         reason = m.get("ai_reason", "")
-        conf_str = f" {conf}%" if conf else ""
+        conf_str = f" · {conf}% match" if conf else ""
         lines.append(f"\n{i}. {E_MOVIE} <b>{t}</b> ({y})")
-        lines.append(f"   {E_STAR}{r:.1f}{conf_str}")
+        lines.append(f"   {E_STAR} {r:.1f}{conf_str}")
         if reason:
-            lines.append(f"   💡 <i>{sanitize_html(reason[:60])}</i>")
+            lines.append(f"   💡 <i>{sanitize_html(reason[:80])}</i>")
     return "\n".join(lines)
 
 
@@ -231,49 +252,52 @@ def format_key_info(key) -> str:
         "UNUSED": "🟢", "USED": "🔵", "EXPIRED": "🟡", "REVOKED": "🔴",
     }.get(key.status.value, "⚪")
     return (
-        f"{E_KEY} <b>KEY</b>\n"
+        f"{E_KEY} <b>KEY INFO</b>\n"
         f"{LINE}\n\n"
-        f"<code>{key.key}</code>\n"
+        f"Key: <code>{key.key}</code>\n"
         f"Type: <b>{key.key_type}</b> ({key.duration_days}d)\n"
-        f"Status: {status_dot} {key.status.value}\n"
+        f"Status: {status_dot} <b>{key.status.value}</b>\n"
         f"Batch: {key.batch_name or 'N/A'}\n"
         f"{LINE_LIGHT}\n"
-        f"Created: {key.created_at.strftime('%m/%d %H:%M') if key.created_at else 'N/A'}\n"
-        f"Redeemed: {key.redeemed_by_user_id or 'N/A'}"
+        f"Created: {key.created_at.strftime('%Y-%m-%d %H:%M') if key.created_at else 'N/A'}\n"
+        f"Redeemed by: {key.redeemed_by_user_id or 'N/A'}\n"
+        f"Redeemed at: {key.redeemed_at.strftime('%Y-%m-%d %H:%M') if key.redeemed_at else 'N/A'}"
     )
 
 
 def format_user_info(user) -> str:
     tier_badge = BADGE_PRO if user.subscription_tier.value == "PRO" else ""
-    expires = user.subscription_expires_at.strftime("%m/%d/%y") if user.subscription_expires_at else "N/A"
-    joined = user.created_at.strftime("%m/%d/%y") if user.created_at else "N/A"
+    expires = user.subscription_expires_at.strftime("%Y-%m-%d") if user.subscription_expires_at else "N/A"
+    joined = user.created_at.strftime("%Y-%m-%d") if user.created_at else "N/A"
+    admin_str = f"{E_CROWN} Admin" if user.is_admin else ""
     return (
-        f"{E_PERSON} <b>USER</b> {tier_badge}\n"
+        f"{E_PERSON} <b>USER INFO</b> {tier_badge}\n"
         f"{LINE}\n\n"
         f"🆔 <code>{user.telegram_id}</code>\n"
         f"Name: {sanitize_html(user.display_name)}\n"
-        f"@{user.username or 'N/A'}\n"
+        f"Username: @{user.username or 'N/A'}\n"
         f"{LINE_LIGHT}\n"
         f"Plan: <b>{user.subscription_tier.value}</b>\n"
         f"Expires: {expires}\n"
-        f"Joined: {joined}"
+        f"Joined: {joined}\n"
+        f"{admin_str}"
     )
 
 
 def format_pro_status(user, usage: dict, wl_count: int) -> str:
-    expires = user.subscription_expires_at.strftime("%m/%d/%y") if user.subscription_expires_at else "N/A"
+    expires = user.subscription_expires_at.strftime("%Y-%m-%d") if user.subscription_expires_at else "N/A"
     days_left = 0
     if user.subscription_expires_at:
         days_left = max(0, (user.subscription_expires_at - datetime.now(timezone.utc)).days)
     return (
-        f"{E_CROWN} <b>PRO</b> {BADGE_PRO}\n"
+        f"{E_CROWN} <b>PRO ACTIVE</b> {BADGE_PRO}\n"
         f"{LINE}\n\n"
-        f"Expires: <b>{expires}</b> ({days_left}d)\n\n"
-        f"{section('Today')}\n"
-        f"{E_SEARCH} {usage.get('search', 0)} ∞\n"
-        f"{E_BRAIN} {usage.get('recommend', 0)} ∞\n"
-        f"{E_ROBOT} {usage.get('explain', 0)} ∞\n"
-        f"{E_LIST} {wl_count} ∞"
+        f"Expires: <b>{expires}</b> ({days_left}d left)\n\n"
+        f"{section('Usage Today')}\n"
+        f"  {E_SEARCH} Searches: {usage.get('search', 0)} (unlimited)\n"
+        f"  {E_BRAIN} Recommends: {usage.get('recommend', 0)} (unlimited)\n"
+        f"  {E_ROBOT} Explains: {usage.get('explain', 0)} (unlimited)\n"
+        f"  {E_LIST} Watchlist: {wl_count} (unlimited)"
     )
 
 
@@ -283,60 +307,78 @@ def format_free_status(usage: dict, wl_count: int) -> str:
     e_cur, e_max = usage.get("explain", 0), FREE_LIMITS["explain"]
     w_cur, w_max = wl_count, FREE_LIMITS["watchlist"]
     return (
-        f"{E_INFO} <b>FREE</b>\n"
+        f"{E_INFO} <b>FREE PLAN</b>\n"
         f"{LINE}\n\n"
-        f"{section('Today')}\n"
-        f"{E_SEARCH} {progress_bar(s_cur, s_max)} {s_cur}/{s_max}\n"
-        f"{E_BRAIN} {progress_bar(r_cur, r_max)} {r_cur}/{r_max}\n"
-        f"{E_ROBOT} {progress_bar(e_cur, e_max)} {e_cur}/{e_max}\n"
-        f"{E_LIST} {progress_bar(w_cur, w_max)} {w_cur}/{w_max}\n\n"
-        f"{E_CROWN} Upgrade for unlimited!"
+        f"{section('Usage Today')}\n"
+        f"  {E_SEARCH} Searches:   {progress_bar(s_cur, s_max)} {s_cur}/{s_max}\n"
+        f"  {E_BRAIN} Recommends: {progress_bar(r_cur, r_max)} {r_cur}/{r_max}\n"
+        f"  {E_ROBOT} Explains:   {progress_bar(e_cur, e_max)} {e_cur}/{e_max}\n"
+        f"  {E_LIST} Watchlist:  {progress_bar(w_cur, w_max)} {w_cur}/{w_max}\n\n"
+        f"{LINE_LIGHT}\n"
+        f"{E_CROWN} Upgrade to Pro for unlimited access!"
     )
 
 
 def format_admin_stats(
     total_users: int, pro_users: int,
     key_stats: dict, daily: dict, ai_status: dict,
-    backend: dict,
+    backend: dict | None = None,
 ) -> str:
     ai_total = ai_status.get("_total", {})
-    ai_pct = (ai_total.get("remaining", 0) / max(ai_total.get("limit", 1), 1)) * 100
+    ai_rem = ai_total.get("remaining", 0)
+    ai_lim = max(ai_total.get("limit", 1), 1)
+    ai_pct = (ai_rem / ai_lim) * 100
 
-    # Backend status dots
-    db_dot = E_GREEN if backend.get("db") else E_RED
-    redis_dot = E_GREEN if backend.get("redis") else E_RED
-    tmdb_dot = E_GREEN if backend.get("tmdb") else E_RED
+    lines = [
+        f"{E_SHIELD} <b>ADMIN DASHBOARD</b>",
+        LINE,
+        "",
+        section("Users"),
+        f"  👥 Total: <b>{total_users}</b>",
+        f"  {E_CROWN} Pro: <b>{pro_users}</b>",
+        "",
+        section("License Keys"),
+        f"  🟢 Unused: <b>{key_stats.get('UNUSED', 0)}</b>",
+        f"  🔵 Used: <b>{key_stats.get('USED', 0)}</b>",
+        f"  🟡 Expired: <b>{key_stats.get('EXPIRED', 0)}</b>",
+        f"  🔴 Revoked: <b>{key_stats.get('REVOKED', 0)}</b>",
+        f"  {E_CHART} Total: <b>{key_stats.get('TOTAL', 0)}</b>",
+        "",
+    ]
 
-    return (
-        f"{E_SHIELD} <b>ADMIN</b>\n"
-        f"{LINE}\n\n"
-        f"{section('Users')}\n"
-        f"👥 {total_users} · {E_CROWN} {pro_users}\n\n"
-        f"{section('Keys')}\n"
-        f"🟢{key_stats.get('UNUSED', 0)} "
-        f"🔵{key_stats.get('USED', 0)} "
-        f"🟡{key_stats.get('EXPIRED', 0)} "
-        f"🔴{key_stats.get('REVOKED', 0)}\n\n"
-        f"{section('Backend')}\n"
-        f"{db_dot} DB  {redis_dot} Redis  {tmdb_dot} TMDB\n"
-        f"⏱ DB: {backend.get('db_ms', '?')}ms\n"
-        f"⏱ Redis: {backend.get('redis_ms', '?')}ms\n\n"
-        f"{section('AI')}\n"
-        f"{E_ROBOT} {progress_bar(int(ai_pct), 100)} {ai_pct:.0f}%\n\n"
-        f"{section('Today')}\n"
-        f"📨 {daily.get('total_commands', 0)} cmds\n"
-        f"{E_PERSON} {daily.get('unique_users', 0)} active"
-    )
+    if backend:
+        db_dot = "🟢" if backend.get("db") else "🔴"
+        redis_dot = "🟢" if backend.get("redis") else "🔴"
+        tmdb_dot = "🟢" if backend.get("tmdb") else "🔴"
+        lines.extend([
+            section("Backend"),
+            f"  {db_dot} DB: {backend.get('db_ms', '?')}ms",
+            f"  {redis_dot} Redis: {backend.get('redis_ms', '?')}ms",
+            f"  {tmdb_dot} TMDB: {backend.get('tmdb_ms', '?')}ms",
+            "",
+        ])
+
+    lines.extend([
+        section("AI Capacity"),
+        f"  {E_ROBOT} {progress_bar(ai_rem, ai_lim)} {ai_pct:.0f}%",
+        f"  Remaining: {ai_rem}/{ai_lim}",
+        "",
+        section("Today"),
+        f"  📨 Commands: <b>{daily.get('total_commands', 0)}</b>",
+        f"  {E_PERSON} Active: <b>{daily.get('unique_users', 0)}</b>",
+    ])
+
+    return "\n".join(lines)
 
 
 def format_backend_status(backend: dict) -> str:
     def status_line(name: str, ok: bool, latency: int | None = None) -> str:
-        dot = E_GREEN if ok else E_RED
+        dot = "🟢" if ok else "🔴"
         lat = f" {latency}ms" if latency else ""
-        return f"{dot} <b>{name}</b>{lat}"
+        return f"  {dot} <b>{name}</b>{lat}"
 
     lines = [
-        f"{E_SERVER} <b>BACKEND</b>",
+        f"{E_SERVER} <b>BACKEND STATUS</b>",
         LINE,
         "",
         section("Services"),
@@ -349,20 +391,24 @@ def format_backend_status(backend: dict) -> str:
         status_line("Streaming", backend.get("streaming", False)),
         "",
         section("DB Pool"),
-        f"Size: {backend.get('db_pool_size', '?')}",
-        f"Checked out: {backend.get('db_pool_checked', '?')}",
+        f"  Size: {backend.get('db_pool_size', '?')}",
+        f"  Checked out: {backend.get('db_pool_checked', '?')}",
         "",
         section("Redis"),
-        f"Connections: {backend.get('redis_connections', '?')}",
-        f"Memory: {backend.get('redis_memory', '?')}",
+        f"  Connections: {backend.get('redis_connections', '?')}",
+        f"  Memory: {backend.get('redis_memory', '?')}",
     ]
     return "\n".join(lines)
 
 
 def format_no_results(query: str = "") -> str:
-    q = sanitize_html(query)[:30]
-    search_text = f'No "<b>{q}</b>" 🙈\n\n' if q else "Not found 🙈\n\n"
-    return f"{E_SEARCH} <b>Nothing</b>\n\n{search_text}💡 Check spelling"
+    q = sanitize_html(query)
+    search_text = f'Can\'t find "<b>{q}</b>" 🙈\n\n' if q else "Can't find that 🙈\n\n"
+    return (
+        f"{E_SEARCH} <b>Nothing Found</b>\n\n"
+        f"{search_text}"
+        "💡 Check spelling or try the English title"
+    )
 
 
 def check_milestone(count: int) -> str | None:
@@ -370,7 +416,7 @@ def check_milestone(count: int) -> str | None:
         return (
             f"{E_PARTY} <b>MILESTONE!</b>\n"
             f"{LINE}\n\n"
-            f"<b>{count}</b> movies! {E_CLAP}\n"
+            f"You've watched <b>{count}</b> movies! {E_CLAP}\n"
             f"Keep going! {E_POPCORN}"
         )
     return None

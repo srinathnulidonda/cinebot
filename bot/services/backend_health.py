@@ -14,7 +14,8 @@ async def check_database() -> tuple[bool, int | None]:
     try:
         start = time.perf_counter()
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            from sqlalchemy import text
+            await conn.execute(text("SELECT 1"))
         latency = int((time.perf_counter() - start) * 1000)
         return True, latency
     except Exception as e:
@@ -127,7 +128,7 @@ async def get_full_health() -> dict:
         "tmdb_ms": tmdb_ms,
         "youtube": yt_ok,
         "youtube_ms": yt_ms,
-        "streaming": True,  # No easy health check
+        "streaming": True,
         "db_pool_size": pool_stats.get("size"),
         "db_pool_checked": pool_stats.get("checked_out"),
         "redis_connections": redis_stats.get("connections"),
