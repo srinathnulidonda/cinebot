@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     BOT_TOKEN: str
+    SUPPORT_BOT_TOKEN: str = ""
     USE_WEBHOOK: bool = False
     WEBHOOK_URL: str = ""
     WEBHOOK_SECRET: str = ""
@@ -53,12 +54,6 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800
 
     ITEMS_PER_PAGE: int = 5
-
-    CHAT_SESSION_TTL: int = 86400
-    CHAT_HISTORY_TTL: int = 604800
-    CHAT_BLOCK_TTL: int = 604800
-    CHAT_RATE_LIMIT_INTERVAL: int = 2
-    CHAT_RATE_LIMIT_HOURLY: int = 30
 
     @property
     def async_database_url(self) -> str:
