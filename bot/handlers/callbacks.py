@@ -4,14 +4,14 @@ from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.services import tmdb_service, youtube_service
-from bot.utils.constants import E_MOVIE
+from bot.utils.constants import LINE
 
 logger = logging.getLogger(__name__)
 
 
 async def trailer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer("Fetching trailer...")
+    await query.answer("Finding trailer... 🎥")
     movie_id = int(query.data.split(":")[1])
     try:
         videos = await tmdb_service.get_movie_videos(movie_id)
@@ -23,15 +23,18 @@ async def trailer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             trailer = await youtube_service.find_trailer(title, year)
         if trailer:
             await query.message.reply_text(
-                f"🎥 <b>Trailer</b>\n\n{trailer['title']}\n{trailer['url']}",
+                f"🎥 <b>TRAILER</b>\n"
+                f"{LINE}\n\n"
+                f"{trailer['title']}\n"
+                f"{trailer['url']}",
                 parse_mode="HTML",
                 disable_web_page_preview=False,
             )
         else:
-            await query.answer("No trailer found.", show_alert=True)
+            await query.answer("No trailer found 🙈", show_alert=True)
     except Exception as e:
         logger.error(f"Trailer fetch failed: {e}")
-        await query.answer("Failed to fetch trailer.", show_alert=True)
+        await query.answer("Failed to load trailer 🙈", show_alert=True)
 
 
 async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -51,10 +54,23 @@ async def back_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text(MSG_WELCOME, parse_mode="HTML")
 
 
+async def contact_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "📞 <b>CONTACT ADMIN</b>\n"
+        f"{LINE}\n\n"
+        "Send your message:\n"
+        "<code>/contact Your message here</code>\n\n"
+        "💡 <code>/contact I want to buy Pro</code>",
+        parse_mode="HTML",
+    )
+
+
 async def unknown_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query:
-        await query.answer("Unknown action.", show_alert=False)
+        await query.answer()
 
 
 def get_handlers() -> list:
@@ -63,4 +79,5 @@ def get_handlers() -> list:
         CallbackQueryHandler(noop_callback, pattern=r"^noop$"),
         CallbackQueryHandler(cancel_callback, pattern=r"^cancel$"),
         CallbackQueryHandler(back_main_callback, pattern=r"^back_main$"),
+        CallbackQueryHandler(contact_admin_callback, pattern=r"^contact:admin$"),
     ]

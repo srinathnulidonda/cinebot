@@ -9,7 +9,7 @@ from bot.middleware.admin_check import admin_only
 from bot.models.engine import redis_client, get_session
 from bot.models.user import UserRepo
 from bot.config import get_settings
-from bot.utils.constants import E_SEND, E_CHECK, E_PERSON, E_CROWN, E_INFO
+from bot.utils.constants import E_SEND, E_CHECK, E_PERSON, E_CROWN, E_INFO, LINE, LINE_LIGHT, BADGE_PRO
 from bot.utils.validators import sanitize_html
 
 logger = logging.getLogger(__name__)
@@ -22,28 +22,25 @@ async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     args = context.args or []
     if not args:
         await update.message.reply_text(
-            f"💬 <b>Contact Admin</b>\n\n"
-            f"Send your message to our team:\n"
-            f"<code>/contact Your message here</code>\n\n"
-            f"Examples:\n"
-            f"• <code>/contact I want to buy Pro subscription</code>\n"
-            f"• <code>/contact I have a question about features</code>\n"
-            f"• <code>/contact Need help with my account</code>",
+            f"📞 <b>CONTACT ADMIN</b>\n"
+            f"{LINE}\n\n"
+            "Send your message:\n"
+            "<code>/contact Your message here</code>\n\n"
+            "💡 Examples:\n"
+            "• <code>/contact I want to buy Pro</code>\n"
+            "• <code>/contact Need help with my account</code>",
             parse_mode="HTML",
         )
         return
 
-    message_text = " ".join(args)
-    if len(message_text) > 1000:
-        message_text = message_text[:1000]
-
+    message_text = " ".join(args)[:1000]
     telegram_id = update.effective_user.id
+
     cooldown_key = f"contact_cd:{telegram_id}"
     last_sent = await redis_client.get(cooldown_key)
     if last_sent:
         await update.message.reply_text(
-            "⏳ Please wait a few minutes before sending another message.",
-            parse_mode="HTML",
+            "⏳ Try again in 10 seconds.", parse_mode="HTML",
         )
         return
 
@@ -51,7 +48,7 @@ async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     username = f"@{user.username}" if user.username else "N/A"
     display = user.first_name or username
     is_pro = context.user_data.get("is_pro", False)
-    tier = "👑 PRO" if is_pro else "📋 FREE"
+    tier = f"{E_CROWN} PRO" if is_pro else "📋 FREE"
 
     ticket_id = await redis_client.incr("ticket_counter")
     ticket_key = f"ticket:{ticket_id}"
@@ -72,17 +69,18 @@ async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             InlineKeyboardButton("✅ Close", callback_data=f"ticket_close:{ticket_id}"),
         ],
         [
-            InlineKeyboardButton(f"👤 User Info", callback_data=f"ticket_user:{telegram_id}"),
-            InlineKeyboardButton(f"🎁 Gift Pro", callback_data=f"ticket_gift:{telegram_id}"),
+            InlineKeyboardButton("👤 Info", callback_data=f"ticket_user:{telegram_id}"),
+            InlineKeyboardButton("🎁 Gift Pro", callback_data=f"ticket_gift:{telegram_id}"),
         ],
     ])
 
     admin_text = (
-        f"📩 <b>New Support Ticket #{ticket_id}</b>\n\n"
-        f"{E_PERSON} <b>From:</b> {sanitize_html(display)} ({username})\n"
-        f"🆔 <b>ID:</b> <code>{telegram_id}</code>\n"
-        f"📋 <b>Plan:</b> {tier}\n\n"
-        f"💬 <b>Message:</b>\n{sanitize_html(message_text)}"
+        f"📩 <b>TICKET #{ticket_id}</b>\n"
+        f"{LINE}\n\n"
+        f"{E_PERSON} {sanitize_html(display)} ({username})\n"
+        f"🆔 <code>{telegram_id}</code> · {tier}\n\n"
+        f"─── ◆ Message ◆ ───\n"
+        f"{sanitize_html(message_text)}"
     )
 
     sent_to = 0
@@ -115,10 +113,11 @@ async def contact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await redis_client.setex(cooldown_key, 120, "1")
 
     await update.message.reply_text(
-        f"{E_CHECK} <b>Message Sent!</b>\n\n"
+        f"{E_CHECK} <b>MESSAGE SENT!</b>\n"
+        f"{LINE}\n\n"
         f"Ticket: <b>#{ticket_id}</b>\n"
-        f"Our team will reply shortly.\n\n"
-        f"You'll receive the response right here in this chat.",
+        "Our team will reply shortly.\n\n"
+        "You'll receive the response right here.",
         parse_mode="HTML",
     )
 
@@ -141,10 +140,11 @@ async def ticket_reply_callback(update: Update, context: ContextTypes.DEFAULT_TY
     original_msg = ticket_data.get("message", "N/A")
 
     await query.message.reply_text(
-        f"💬 <b>Reply to Ticket #{ticket_id}</b>\n"
-        f"👤 User: {sanitize_html(user_display)}\n"
-        f"📝 Original: {sanitize_html(original_msg[:200])}\n\n"
-        f"<b>Type your reply now:</b>",
+        f"💬 <b>REPLY TO #{ticket_id}</b>\n"
+        f"{LINE}\n\n"
+        f"👤 {sanitize_html(user_display)}\n"
+        f"📝 {sanitize_html(original_msg[:200])}\n\n"
+        "<b>Type your reply:</b>",
         parse_mode="HTML",
     )
 
@@ -168,7 +168,7 @@ async def ticket_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await redis_client.hset(f"ticket:{ticket_id}", "status", "closed")
     await query.answer("Ticket closed!")
     await query.edit_message_text(
-        query.message.text + f"\n\n✅ <b>Closed</b> by admin",
+        query.message.text + f"\n\n✅ <b>CLOSED</b>",
         parse_mode="HTML",
     )
 
@@ -178,8 +178,8 @@ async def ticket_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(
                 int(user_id),
                 f"{E_CHECK} <b>Ticket #{ticket_id} Closed</b>\n\n"
-                f"Your support ticket has been resolved.\n"
-                f"Use /contact to reach us again anytime!",
+                "Your ticket has been resolved.\n"
+                "Use /contact to reach us again!",
                 parse_mode="HTML",
             )
         except Exception:
@@ -201,7 +201,7 @@ async def ticket_user_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     async with get_session() as session:
         user = await UserRepo.get_by_telegram_id(session, telegram_id)
     if not user:
-        await query.message.reply_text("❌ User not found.", parse_mode="HTML")
+        await query.message.reply_text("❌ User not found 🙈", parse_mode="HTML")
         return
     from bot.utils.formatters import format_user_info
     await query.message.reply_text(format_user_info(user), parse_mode="HTML")
@@ -222,14 +222,16 @@ async def ticket_gift_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     from bot.utils.constants import KEY_TYPES
     buttons = [
         [InlineKeyboardButton(
-            f"{v['label']} ({v['days']}d)",
+            f"💎 {v['label']} ({v['days']}d)",
             callback_data=f"ticket_dogift:{telegram_id}:{k}",
         )]
         for k, v in KEY_TYPES.items()
     ]
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel")])
     await query.message.reply_text(
-        f"🎁 <b>Gift Pro to user {telegram_id}</b>\n\nSelect duration:",
+        f"🎁 <b>GIFT PRO</b> → {telegram_id}\n"
+        f"{LINE}\n\n"
+        "Select duration:",
         reply_markup=InlineKeyboardMarkup(buttons),
         parse_mode="HTML",
     )
@@ -254,19 +256,21 @@ async def ticket_dogift_callback(update: Update, context: ContextTypes.DEFAULT_T
         from bot.services import key_service
         result = await key_service.gift_key(admin_id, telegram_id, key_type)
         await query.edit_message_text(
-            f"🎁 <b>Pro Gifted!</b>\n\n"
+            f"🎁 <b>PRO GIFTED!</b>\n"
+            f"{LINE}\n\n"
             f"User: {result['user']} ({result['telegram_id']})\n"
-            f"Duration: {result['duration']}\n"
+            f"Duration: <b>{result['duration']}</b>\n"
             f"Key: <code>{result['key']}</code>",
             parse_mode="HTML",
         )
         try:
             await context.bot.send_message(
                 telegram_id,
-                f"🎁 <b>You've been upgraded to Pro!</b>\n\n"
-                f"Duration: {result['duration']}\n"
-                f"Enjoy unlimited access to all features! ✨\n\n"
-                f"Use /pro to check your status.",
+                f"🎁 <b>You've been upgraded to Pro!</b>\n"
+                f"{LINE}\n\n"
+                f"Duration: <b>{result['duration']}</b>\n"
+                "Enjoy unlimited access! ✨\n\n"
+                "Use /pro to check your status.",
                 parse_mode="HTML",
             )
         except Exception:
@@ -290,7 +294,7 @@ async def admin_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     reply_text = update.message.text[:2000]
     ticket_data = await redis_client.hgetall(f"ticket:{ticket_id}")
     if not ticket_data:
-        await update.message.reply_text("❌ Ticket expired or not found.", parse_mode="HTML")
+        await update.message.reply_text("❌ Ticket expired.", parse_mode="HTML")
         return
 
     user_id = ticket_data.get("user_id")
@@ -304,19 +308,20 @@ async def admin_reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         await context.bot.send_message(
             int(user_id),
-            f"💬 <b>Reply to Ticket #{ticket_id}</b>\n\n"
-            f"👤 <b>From:</b> {sanitize_html(admin_name)} (Admin)\n\n"
+            f"💬 <b>REPLY — Ticket #{ticket_id}</b>\n"
+            f"{LINE}\n\n"
+            f"👤 {sanitize_html(admin_name)} (Admin)\n\n"
             f"{sanitize_html(reply_text)}\n\n"
-            f"<i>Reply with /contact to continue the conversation.</i>",
+            f"{LINE_LIGHT}\n"
+            "<i>Reply with /contact to continue.</i>",
             parse_mode="HTML",
         )
         await redis_client.hset(f"ticket:{ticket_id}", "status", "replied")
         await update.message.reply_text(
-            f"{E_CHECK} <b>Reply sent to user!</b>\n\nTicket #{ticket_id}",
-            parse_mode="HTML",
+            f"{E_CHECK} Reply sent! Ticket #{ticket_id}", parse_mode="HTML",
         )
     except Exception as e:
-        await update.message.reply_text(f"❌ Failed to send: {e}", parse_mode="HTML")
+        await update.message.reply_text(f"❌ Failed: {e}", parse_mode="HTML")
 
 
 @admin_only
@@ -332,7 +337,7 @@ async def tickets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             break
 
     if not keys:
-        await update.message.reply_text("📭 No support tickets.", parse_mode="HTML")
+        await update.message.reply_text("📭 No tickets.", parse_mode="HTML")
         return
 
     tickets = []
@@ -342,30 +347,34 @@ async def tickets_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             tid = key.split(":")[1]
             tickets.append((tid, data))
 
-    open_tickets = [(t, d) for t, d in tickets if d.get("status") == "open"]
-    replied_tickets = [(t, d) for t, d in tickets if d.get("status") == "replied"]
-    closed_tickets = [(t, d) for t, d in tickets if d.get("status") == "closed"]
+    open_t = [(t, d) for t, d in tickets if d.get("status") == "open"]
+    replied_t = [(t, d) for t, d in tickets if d.get("status") == "replied"]
+    closed_t = [(t, d) for t, d in tickets if d.get("status") == "closed"]
 
-    lines = [f"📩 <b>Support Tickets</b>\n"]
-    if open_tickets:
-        lines.append(f"<b>🔴 Open ({len(open_tickets)}):</b>")
-        for tid, data in open_tickets[:10]:
+    lines = [
+        f"📩 <b>SUPPORT TICKETS</b>",
+        LINE,
+        "",
+    ]
+    if open_t:
+        lines.append(f"🔴 <b>Open ({len(open_t)})</b>")
+        for tid, data in open_t[:10]:
             display = data.get("display", "?")
-            msg = data.get("message", "")[:50]
-            created = data.get("created", "")
-            lines.append(f"  #{tid} — {sanitize_html(display)}: {sanitize_html(msg)}...")
-    if replied_tickets:
-        lines.append(f"\n<b>🟡 Replied ({len(replied_tickets)}):</b>")
-        for tid, data in replied_tickets[:5]:
-            display = data.get("display", "?")
-            lines.append(f"  #{tid} — {sanitize_html(display)}")
-    if closed_tickets:
-        lines.append(f"\n<b>🟢 Closed ({len(closed_tickets)}):</b>")
-        for tid, data in closed_tickets[:5]:
-            display = data.get("display", "?")
-            lines.append(f"  #{tid} — {sanitize_html(display)}")
+            msg = data.get("message", "")[:40]
+            lines.append(f"  #{tid} · {sanitize_html(display)}: {sanitize_html(msg)}…")
+        lines.append("")
+    if replied_t:
+        lines.append(f"🟡 <b>Replied ({len(replied_t)})</b>")
+        for tid, data in replied_t[:5]:
+            lines.append(f"  #{tid} · {sanitize_html(data.get('display', '?'))}")
+        lines.append("")
+    if closed_t:
+        lines.append(f"🟢 <b>Closed ({len(closed_t)})</b>")
+        for tid, data in closed_t[:5]:
+            lines.append(f"  #{tid} · {sanitize_html(data.get('display', '?'))}")
 
-    lines.append(f"\n📊 Total: {len(tickets)}")
+    lines.append(f"\n{LINE_LIGHT}")
+    lines.append(f"📊 Total: {len(tickets)}")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 

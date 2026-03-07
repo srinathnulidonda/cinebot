@@ -8,7 +8,7 @@ from bot.middleware.analytics import track_command
 from bot.services import recommendation_engine, tmdb_service
 from bot.utils.formatters import format_movie_card
 from bot.utils.keyboards import random_filter_kb, movie_detail_kb
-from bot.utils.constants import E_DICE, TMDB_GENRES
+from bot.utils.constants import E_DICE, TMDB_GENRES, LINE
 from bot.models.engine import get_session
 from bot.models.watchlist import WatchlistRepo
 from bot import CineBotError
@@ -20,7 +20,9 @@ async def random_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await ensure_user(update, context)
     await track_command(update, context)
     await update.message.reply_text(
-        f"{E_DICE} <b>Random Movie Pick</b>\n\nChoose a genre or go fully random:",
+        f"{E_DICE} <b>RANDOM PICK</b>\n"
+        f"{LINE}\n\n"
+        "Choose a genre or go random:",
         reply_markup=random_filter_kb(),
         parse_mode="HTML",
     )
@@ -34,10 +36,10 @@ async def random_genre_callback(update: Update, context: ContextTypes.DEFAULT_TY
     genre_name = TMDB_GENRES.get(genre_id, "Any Genre") if genre_id else "Any Genre"
     await ensure_user(update, context)
 
-    spin_frames = ["🎰 Spinning...", "🎰 Spinning... 🎬", "🎰 Spinning... 🎬🎬", "🎰 Spinning... 🎬🎬🎬"]
-    await query.edit_message_text(spin_frames[0], parse_mode="HTML")
-    for frame in spin_frames[1:]:
-        await asyncio.sleep(0.4)
+    frames = ["🎰 Spinning...", "🎰 Spinning... 🎬", "🎰 Spinning... 🎬🎬", "🎰 Spinning... 🎬🎬🎬"]
+    await query.edit_message_text(frames[0], parse_mode="HTML")
+    for frame in frames[1:]:
+        await asyncio.sleep(0.35)
         try:
             await query.edit_message_text(frame, parse_mode="HTML")
         except Exception:
@@ -46,7 +48,9 @@ async def random_genre_callback(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         movie = await recommendation_engine.get_random_movie(genre_id)
         if not movie:
-            await query.edit_message_text("😕 Couldn't find a random movie. Try again!", parse_mode="HTML")
+            await query.edit_message_text(
+                "😕 Couldn't find a movie. Try again! 🎲", parse_mode="HTML",
+            )
             return
         movie_detail = await tmdb_service.get_movie(movie["id"])
         card = format_movie_card(movie_detail)

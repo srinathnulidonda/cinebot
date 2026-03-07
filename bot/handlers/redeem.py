@@ -5,7 +5,8 @@ from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.analytics import track_command, track_event
 from bot.services import key_service
-from bot.utils.constants import MSG_KEY_REDEEMED, E_KEY, E_CROSS
+from bot.utils.constants import MSG_KEY_REDEEMED, E_KEY, E_CROWN, E_SPARKLE, LINE, KEY_TYPES, LINE_LIGHT
+from bot.utils.keyboards import rate_limit_kb
 from bot import CineBotError
 
 logger = logging.getLogger(__name__)
@@ -17,9 +18,10 @@ async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if not context.args:
         await update.message.reply_text(
-            f"{E_KEY} <b>Redeem a License Key</b>\n\n"
-            f"Usage: <code>/redeem CINE-XXXX-XXXX-XXXX-XXXX</code>\n\n"
-            f"Contact an admin to get your Pro license key!",
+            f"{E_KEY} <b>REDEEM KEY</b>\n"
+            f"{LINE}\n\n"
+            "Usage: <code>/redeem CINE-XXXX-XXXX-XXXX-XXXX</code>\n\n"
+            "📞 /contact an admin to get your key!",
             parse_mode="HTML",
         )
         return
@@ -36,16 +38,19 @@ async def redeem_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await track_event("key_redeemed", telegram_id)
         await update.message.reply_text(text, parse_mode="HTML")
     except CineBotError as e:
-        await update.message.reply_text(e.user_message, parse_mode="HTML")
+        await update.message.reply_text(
+            e.user_message, reply_markup=rate_limit_kb(), parse_mode="HTML",
+        )
 
 
 async def redeem_prompt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        f"{E_KEY} <b>Redeem a License Key</b>\n\n"
-        f"Send: <code>/redeem CINE-XXXX-XXXX-XXXX-XXXX</code>\n\n"
-        f"Contact an admin to purchase a key!",
+        f"{E_KEY} <b>REDEEM KEY</b>\n"
+        f"{LINE}\n\n"
+        "Send: <code>/redeem CINE-XXXX-XXXX-XXXX-XXXX</code>\n\n"
+        "📞 /contact an admin to purchase a key!",
         parse_mode="HTML",
     )
 
@@ -53,11 +58,23 @@ async def redeem_prompt_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def view_plans_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    from bot.utils.constants import KEY_TYPES, E_CROWN, E_SPARKLE
-    lines = [f"{E_CROWN} <b>CineBot Pro Plans</b>\n"]
+    lines = [
+        f"{E_CROWN} <b>CINEBOT PRO</b>",
+        LINE,
+        "",
+        f"{E_SPARKLE} <b>Unlimited</b> searches & recommendations",
+        f"{E_SPARKLE} <b>Unlimited</b> AI explanations",
+        f"{E_SPARKLE} <b>Unlimited</b> watchlist",
+        f"{E_SPARKLE} Priority support",
+        "",
+        f"{LINE_LIGHT}",
+        "",
+        "─── ◆ Plans ◆ ───",
+    ]
     for k, v in KEY_TYPES.items():
-        lines.append(f"  {E_SPARKLE} <b>{v['label']}</b> ({k})")
-    lines.append(f"\nContact an admin to get your key!")
+        lines.append(f"  💎 <b>{v['label']}</b> ({k})")
+    lines.append("")
+    lines.append("📞 /contact an admin to get your key!")
     await query.edit_message_text("\n".join(lines), parse_mode="HTML")
 
 

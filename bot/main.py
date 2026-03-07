@@ -20,6 +20,7 @@ from bot.jobs.subscription_expiry import subscription_expiry_job
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.rate_limiter import check_global_rate_limit
 from bot.middleware.analytics import track_command
+from bot.utils.constants import LINE
 from bot import CineBotError
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,14 @@ async def error_handler(update: object, context) -> None:
                     pass
             elif update.effective_message:
                 try:
-                    await update.effective_message.reply_text(error.user_message, parse_mode="HTML")
+                    from bot.utils.keyboards import rate_limit_kb
+                    from bot import RateLimitExceededError, SubscriptionRequiredError
+                    kb = None
+                    if isinstance(error, (RateLimitExceededError, SubscriptionRequiredError)):
+                        kb = rate_limit_kb()
+                    await update.effective_message.reply_text(
+                        error.user_message, parse_mode="HTML", reply_markup=kb,
+                    )
                 except Exception:
                     pass
         return
@@ -64,11 +72,15 @@ async def error_handler(update: object, context) -> None:
     if isinstance(update, Update):
         try:
             if update.callback_query:
-                await update.callback_query.answer("⚠️ An error occurred.", show_alert=True)
+                await update.callback_query.answer("⚠️ Something went wrong.", show_alert=True)
             elif update.effective_message:
+                from bot.utils.keyboards import rate_limit_kb
                 await update.effective_message.reply_text(
-                    "⚠️ An unexpected error occurred. Please try again later.",
+                    "⚠️ <b>Unexpected Error</b>\n\n"
+                    "Something went wrong. Try again shortly.\n\n"
+                    "📞 /contact if this persists",
                     parse_mode="HTML",
+                    reply_markup=rate_limit_kb(),
                 )
         except Exception:
             pass
@@ -101,12 +113,20 @@ async def text_message_handler(update: Update, context) -> None:
         from bot.services import recommendation_engine
         from bot.utils.formatters import format_recommendation_list
         from bot.utils.keyboards import search_results_kb
-        loading = await update.message.reply_text("🧠 Finding similar movies...", parse_mode="HTML")
+        from bot.utils.constants import E_BRAIN
+        loading = await update.message.reply_text(
+            f"{E_BRAIN} Finding similar movies...\n⏳ This may take a moment",
+            parse_mode="HTML",
+        )
         try:
             search_data = await tmdb_service.search_movies(query)
             results = search_data.get("results", [])
             if not results:
-                await loading.edit_text("🔍 Movie not found.", parse_mode="HTML")
+                from bot.utils.formatters import format_no_results
+                from bot.utils.keyboards import no_results_kb
+                await loading.edit_text(
+                    format_no_results(query), reply_markup=no_results_kb(), parse_mode="HTML",
+                )
                 return
             source_movie = results[0]
             user_db_id = context.user_data.get("db_user_id", 0)
@@ -114,11 +134,12 @@ async def text_message_handler(update: Update, context) -> None:
             from bot.middleware.rate_limiter import increment_usage
             await increment_usage(update.effective_user.id, "recommend")
             if not movies:
-                await loading.edit_text("😕 No similar movies found.", parse_mode="HTML")
+                await loading.edit_text(
+                    "😕 No similar movies found. Try another title! 🎬", parse_mode="HTML",
+                )
                 return
-            text = format_recommendation_list(
-                movies, f"🎬 Similar to '{source_movie.get('title', '?')}'"
-            )
+            source_title = source_movie.get("title", "?")
+            text = format_recommendation_list(movies, f"🎬 Similar to '{source_title}'")
             kb = search_results_kb(movies)
             await loading.edit_text(text, reply_markup=kb, parse_mode="HTML")
         except CineBotError as e:
@@ -138,7 +159,7 @@ async def text_message_handler(update: Update, context) -> None:
             results = data.get("results", [])[:6]
             if results:
                 await update.message.reply_text(
-                    "🔍 <b>Quick search results:</b>",
+                    f"🔍 <b>Quick results:</b>\n{LINE}",
                     reply_markup=search_results_kb(results),
                     parse_mode="HTML",
                 )

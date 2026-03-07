@@ -10,10 +10,10 @@ from bot.models.watchlist import WatchlistRepo
 from bot.models.database import Priority
 from bot.services import tmdb_service
 from bot.utils.formatters import format_watchlist_item
-from bot.utils.keyboards import pagination_kb, priority_kb, search_results_kb
-from bot.utils.constants import E_LIST, E_CHECK, E_CROSS, FREE_LIMITS, MSG_WATCHLIST_EMPTY
+from bot.utils.keyboards import pagination_kb, priority_kb, search_results_kb, rate_limit_kb
+from bot.utils.constants import E_LIST, E_CHECK, FREE_LIMITS, MSG_WATCHLIST_EMPTY, LINE
 from bot.utils.pagination import AsyncPaginator
-from bot import WatchlistFullError, DuplicateEntryError, CineBotError
+from bot import CineBotError
 from bot.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -43,20 +43,23 @@ async def _show_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
     async with get_session() as session:
         items, total = await WatchlistRepo.get_paginated(session, user_db_id, page, _s.ITEMS_PER_PAGE)
     if not items and page == 1:
-        text = MSG_WATCHLIST_EMPTY
         target = message or update.message or update.callback_query.message
         if message:
-            await target.edit_text(text, parse_mode="HTML")
+            await target.edit_text(MSG_WATCHLIST_EMPTY, parse_mode="HTML")
         else:
-            await target.reply_text(text, parse_mode="HTML")
+            await target.reply_text(MSG_WATCHLIST_EMPTY, parse_mode="HTML")
         return
 
     pag = AsyncPaginator(items, total, page, _s.ITEMS_PER_PAGE)
-    lines = [f"{E_LIST} <b>Your Watchlist</b> ({total} movies)\n"]
+    lines = [
+        f"{E_LIST} <b>WATCHLIST</b> ({total} movies)",
+        LINE,
+        "",
+    ]
     offset = (page - 1) * _s.ITEMS_PER_PAGE
     for i, item in enumerate(items, offset + 1):
         lines.append(format_watchlist_item(item, i))
-    lines.append(f"\n{pag.info}")
+    lines.append(f"\n📄 {pag.info}")
     text = "\n".join(lines)
     kb = pagination_kb("wl", page, pag.total_pages)
 
@@ -72,12 +75,16 @@ async def _watchlist_search(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         data = await tmdb_service.search_movies(query)
         results = data.get("results", [])[:6]
         if not results:
-            await update.message.reply_text("🔍 No movies found.", parse_mode="HTML")
+            from bot.utils.formatters import format_no_results
+            from bot.utils.keyboards import no_results_kb
+            await update.message.reply_text(
+                format_no_results(query), reply_markup=no_results_kb(), parse_mode="HTML",
+            )
             return
-        kb = search_results_kb(results)
         await update.message.reply_text(
-            f"📋 Select a movie to add to your watchlist:",
-            reply_markup=kb, parse_mode="HTML",
+            f"{E_LIST} Select a movie to save:",
+            reply_markup=search_results_kb(results),
+            parse_mode="HTML",
         )
     except CineBotError as e:
         await update.message.reply_text(e.user_message, parse_mode="HTML")
@@ -88,9 +95,9 @@ async def _watchlist_remove(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     async with get_session() as session:
         removed = await WatchlistRepo.remove(session, user_db_id, movie_id)
     if removed:
-        await update.message.reply_text(f"{E_CHECK} Removed from watchlist.", parse_mode="HTML")
+        await update.message.reply_text(f"{E_CHECK} Removed! 🍿", parse_mode="HTML")
     else:
-        await update.message.reply_text("❌ Movie not found in your watchlist.", parse_mode="HTML")
+        await update.message.reply_text("❌ Not in your watchlist 🙈", parse_mode="HTML")
 
 
 async def wl_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -103,11 +110,14 @@ async def wl_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     async with get_session() as session:
         if await WatchlistRepo.exists(session, user_db_id, movie_id):
-            await query.answer("Already in your watchlist!", show_alert=True)
+            await query.answer("Already saved! 📋", show_alert=True)
             return
         count = await WatchlistRepo.count(session, user_db_id)
         if not is_pro and count >= FREE_LIMITS["watchlist"]:
-            await query.answer(f"Watchlist full ({FREE_LIMITS['watchlist']} items). Upgrade to Pro!", show_alert=True)
+            await query.answer(
+                f"Watchlist full ({FREE_LIMITS['watchlist']}). Upgrade to 👑 Pro!",
+                show_alert=True,
+            )
             return
 
     try:
@@ -118,7 +128,7 @@ async def wl_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 movie.get("title", "Unknown"),
                 movie.get("poster_path"),
             )
-        await query.answer(f"✅ Added to watchlist!")
+        await query.answer("Added! 🍿")
         from bot.utils.keyboards import movie_detail_kb
         kb = movie_detail_kb(movie_id, in_watchlist=True)
         try:
@@ -138,7 +148,7 @@ async def wl_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     async with get_session() as session:
         await WatchlistRepo.remove(session, user_db_id, movie_id)
-    await query.answer("Removed from watchlist!")
+    await query.answer("Removed! 🗑️")
     from bot.utils.keyboards import movie_detail_kb
     kb = movie_detail_kb(movie_id, in_watchlist=False)
     try:
@@ -157,16 +167,15 @@ async def wl_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def priority_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
     parts = query.data.split(":")
     movie_id = int(parts[1])
     priority_str = parts[2]
     user_db_id = context.user_data.get("db_user_id", 0)
-
     priority = Priority(priority_str)
     async with get_session() as session:
         await WatchlistRepo.update_priority(session, user_db_id, movie_id, priority)
-    await query.answer(f"Priority set to {priority_str}!")
+    emoji = {"HIGH": "🔴", "MED": "🟡", "LOW": "🟢"}.get(priority_str, "⚪")
+    await query.answer(f"Priority: {emoji} {priority_str}")
 
 
 def get_handlers() -> list:

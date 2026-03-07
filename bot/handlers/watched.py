@@ -12,7 +12,7 @@ from bot.models.preference import PreferenceRepo
 from bot.services import tmdb_service
 from bot.utils.formatters import format_watched_item, check_milestone
 from bot.utils.keyboards import rating_kb, search_results_kb, pagination_kb
-from bot.utils.constants import E_FILM, E_CHECK, E_STAR, MSG_WATCHED_EMPTY, TMDB_GENRES
+from bot.utils.constants import E_FILM, E_CHECK, E_STAR, MSG_WATCHED_EMPTY, TMDB_GENRES, LINE
 from bot.utils.pagination import AsyncPaginator
 from bot.config import get_settings
 from bot import CineBotError
@@ -31,10 +31,14 @@ async def watched_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             data = await tmdb_service.search_movies(query)
             results = data.get("results", [])[:6]
             if not results:
-                await update.message.reply_text("🔍 No movies found.", parse_mode="HTML")
+                from bot.utils.formatters import format_no_results
+                from bot.utils.keyboards import no_results_kb
+                await update.message.reply_text(
+                    format_no_results(query), reply_markup=no_results_kb(), parse_mode="HTML",
+                )
                 return
             await update.message.reply_text(
-                f"{E_FILM} Select a movie to mark as watched:",
+                f"{E_FILM} Select a movie to log:",
                 reply_markup=search_results_kb(results),
                 parse_mode="HTML",
             )
@@ -56,11 +60,15 @@ async def _show_watched(update: Update, context: ContextTypes.DEFAULT_TYPE, page
             await target.reply_text(MSG_WATCHED_EMPTY, parse_mode="HTML")
         return
     pag = AsyncPaginator(items, total, page, _s.ITEMS_PER_PAGE)
-    lines = [f"{E_FILM} <b>Your Watched Movies</b> ({total} movies)\n"]
+    lines = [
+        f"{E_FILM} <b>WATCHED</b> ({total} movies)",
+        LINE,
+        "",
+    ]
     offset = (page - 1) * _s.ITEMS_PER_PAGE
     for i, item in enumerate(items, offset + 1):
         lines.append(format_watched_item(item, i))
-    lines.append(f"\n{pag.info}")
+    lines.append(f"\n📄 {pag.info}")
     text = "\n".join(lines)
     kb = pagination_kb("watched", page, pag.total_pages)
     target = message or update.message or update.callback_query.message
@@ -79,7 +87,7 @@ async def watched_add_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     async with get_session() as session:
         if await WatchedRepo.exists(session, user_db_id, movie_id):
-            await query.answer("Already in your watched list!", show_alert=True)
+            await query.answer("Already logged! 🎞", show_alert=True)
             return
 
     try:
@@ -102,8 +110,11 @@ async def watched_add_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 await PreferenceRepo.increment_actors(session, user_db_id, cast)
 
         await track_event("movie_watched", update.effective_user.id)
+
+        title = movie.get("title", "Movie")
         await query.message.reply_text(
-            f"{E_CHECK} <b>{movie.get('title')}</b> marked as watched!\n\nRate it:",
+            f"{E_CHECK} <b>{title}</b> logged!\n\n"
+            f"Rate it:",
             reply_markup=rating_kb(movie_id),
             parse_mode="HTML",
         )
@@ -120,15 +131,17 @@ async def rate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     parts = query.data.split(":")
     movie_id = int(parts[1])
     rating = float(parts[2])
-    await query.answer(f"Rated {rating}/10!")
+    await query.answer(f"Rated {rating:.0f}/10! ⭐")
     await ensure_user(update, context)
     user_db_id = context.user_data.get("db_user_id", 0)
 
     async with get_session() as session:
         await WatchedRepo.update_rating(session, user_db_id, movie_id, rating)
 
+    stars = "★" * min(int(rating / 2), 5) + "☆" * (5 - min(int(rating / 2), 5))
     await query.edit_message_text(
-        f"{E_STAR} Rated <b>{rating}/10</b>! Great taste! 🍿",
+        f"{E_STAR} <b>{rating:.0f}/10</b> {stars}\n\n"
+        f"Great taste! 🍿",
         parse_mode="HTML",
     )
 
@@ -139,7 +152,9 @@ async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.answer()
     context.user_data["awaiting_review_for"] = movie_id
     await query.edit_message_text(
-        "📝 <b>Write your review:</b>\n\nSend your review as a text message.",
+        "📝 <b>WRITE YOUR REVIEW</b>\n"
+        f"{LINE}\n\n"
+        "Send your thoughts as a message:",
         parse_mode="HTML",
     )
 
@@ -158,7 +173,7 @@ async def review_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             await WatchedRepo.update_rating(session, user_db_id, movie_id, 0, review)
 
     context.user_data.pop("awaiting_review_for", None)
-    await update.message.reply_text(f"{E_CHECK} Review saved!", parse_mode="HTML")
+    await update.message.reply_text(f"{E_CHECK} Review saved! 📝", parse_mode="HTML")
 
 
 async def watched_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

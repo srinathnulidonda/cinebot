@@ -9,7 +9,7 @@ from bot.models.engine import get_session
 from bot.models.alert import AlertRepo
 from bot.services import tmdb_service
 from bot.utils.keyboards import alert_list_kb
-from bot.utils.constants import E_BELL, E_CHECK
+from bot.utils.constants import E_BELL, E_CHECK, LINE
 from bot.utils.pagination import AsyncPaginator
 from bot.config import get_settings
 from bot import CineBotError
@@ -29,7 +29,11 @@ async def _show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, page:
     async with get_session() as session:
         items, total = await AlertRepo.get_user_alerts(session, user_db_id, page, _s.ITEMS_PER_PAGE)
     if not items and page == 1:
-        text = f"{E_BELL} <b>No release alerts set.</b>\n\nUse the 🔔 button on any movie to get notified!"
+        text = (
+            f"{E_BELL} <b>No alerts set</b>\n\n"
+            "Use the 🔔 button on any movie to get notified!\n\n"
+            "💡 /search a movie to set an alert"
+        )
         target = message or update.message or update.callback_query.message
         if message:
             await target.edit_text(text, parse_mode="HTML")
@@ -37,12 +41,17 @@ async def _show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, page:
             await target.reply_text(text, parse_mode="HTML")
         return
     pag = AsyncPaginator(items, total, page, _s.ITEMS_PER_PAGE)
-    lines = [f"{E_BELL} <b>Your Release Alerts</b> ({total})\n"]
+    lines = [
+        f"{E_BELL} <b>RELEASE ALERTS</b> ({total})",
+        LINE,
+        "",
+    ]
     for a in items:
         date_str = a.release_date.strftime("%Y-%m-%d") if a.release_date else "TBD"
         status = "✅ Notified" if a.notified else f"📅 {date_str}"
-        lines.append(f"  🎬 {a.movie_title} — {status}")
-    lines.append(f"\n{pag.info}\nTap to remove:")
+        lines.append(f"  🎬 <b>{a.movie_title}</b> — {status}")
+    lines.append(f"\n📄 {pag.info}")
+    lines.append("Tap to remove:")
     text = "\n".join(lines)
     kb = alert_list_kb(items, page, pag.total_pages)
     target = message or update.message or update.callback_query.message
@@ -60,7 +69,7 @@ async def alert_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     async with get_session() as session:
         if await AlertRepo.exists(session, user_db_id, movie_id):
-            await query.answer("Alert already set!", show_alert=True)
+            await query.answer("Alert already set! 🔔", show_alert=True)
             return
     try:
         movie = await tmdb_service.get_movie(movie_id)
@@ -73,7 +82,8 @@ async def alert_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 pass
         async with get_session() as session:
             await AlertRepo.create(session, user_db_id, movie_id, movie.get("title", "Unknown"), release_date)
-        await query.answer(f"🔔 Alert set for {movie.get('title', 'this movie')}!")
+        title = movie.get("title", "movie")
+        await query.answer(f"🔔 Alert set for {title}!")
     except CineBotError as e:
         await query.answer(e.user_message, show_alert=True)
 
@@ -87,10 +97,10 @@ async def alert_remove_callback(update: Update, context: ContextTypes.DEFAULT_TY
     async with get_session() as session:
         removed = await AlertRepo.remove(session, user_db_id, movie_id)
     if removed:
-        await query.answer("Alert removed!")
+        await query.answer("Removed! 🗑️")
         await _show_alerts(update, context, 1, message=query.message)
     else:
-        await query.answer("Alert not found.", show_alert=True)
+        await query.answer("Alert not found 🙈", show_alert=True)
 
 
 async def alerts_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

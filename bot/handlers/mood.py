@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes, CommandHandler
 from bot.middleware.subscription_check import ensure_user
 from bot.middleware.analytics import track_command
 from bot.utils.keyboards import mood_kb
+from bot.utils.constants import LINE
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,9 @@ async def mood_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await ensure_user(update, context)
     await track_command(update, context)
     await update.message.reply_text(
-        f"😊 <b>How are you feeling right now?</b>\n\nPick your mood and I'll find the perfect movie:",
+        "😊 <b>MOOD PICKER</b>\n"
+        f"{LINE}\n\n"
+        "How are you feeling right now?",
         reply_markup=mood_kb(),
         parse_mode="HTML",
     )

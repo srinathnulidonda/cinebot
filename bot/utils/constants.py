@@ -4,8 +4,8 @@ E_MOVIE = "🎬"
 E_STAR = "⭐"
 E_FIRE = "🔥"
 E_HEART = "❤️"
-E_CLOCK = "⏱"
-E_GLOBE = "🌍"
+E_CLOCK = "🕐"
+E_GLOBE = "🌐"
 E_TROPHY = "🏆"
 E_LOCK = "🔒"
 E_KEY = "🔑"
@@ -29,8 +29,8 @@ E_TV = "📺"
 E_MONEY = "💰"
 E_CALENDAR = "📅"
 E_PIN = "📌"
-E_ARROW_R = "▶️"
-E_ARROW_L = "◀️"
+E_ARROW_R = "→"
+E_ARROW_L = "←"
 E_UP = "⬆️"
 E_DOWN = "⬇️"
 E_REFRESH = "🔄"
@@ -39,6 +39,19 @@ E_PERSON = "👤"
 E_PEOPLE = "👥"
 E_GEAR = "⚙️"
 E_ROBOT = "🤖"
+E_GEM = "💎"
+E_BOLT = "⚡"
+E_PHONE = "📞"
+E_SHIELD = "🛡️"
+E_WAIT = "⏳"
+
+LINE = "━━━━━━━━━━━━━━━━━━━━━"
+LINE_LIGHT = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
+
+BADGE_PRO = "「👑 ᴘʀᴏ」"
+BADGE_HOT = "「🔥 ʜᴏᴛ」"
+BADGE_NEW = "「✨ ɴᴇᴡ」"
+BADGE_TOP = "「⭐ ᴛᴏᴘ」"
 
 TMDB_GENRES = {
     28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
@@ -49,14 +62,12 @@ TMDB_GENRES = {
 }
 
 MOOD_MAP = {
-    "😊 Happy": [35, 10751, 16, 10402],
+    "😄 Happy": [35, 10751, 16, 10402],
     "😢 Sad": [18, 10749],
     "😱 Scared": [27, 53],
-    "🤔 Thoughtful": [99, 36, 18],
-    "🚀 Adventurous": [28, 12, 878, 14],
+    "🤔 Think": [99, 36, 9648],
+    "💑 Love": [10749, 18, 35],
     "😂 Funny": [35, 16],
-    "❤️ Romantic": [10749, 18, 35],
-    "😎 Cool": [28, 80, 53],
 }
 
 FREE_LIMITS = {
@@ -84,97 +95,124 @@ KEY_TYPES = {
 MILESTONES = [1, 5, 10, 25, 50, 100, 250, 500, 1000]
 
 MSG_WELCOME = (
-    f"{E_MOVIE} <b>Welcome to CineBot!</b> {E_POPCORN}\n\n"
-    "Your personal AI movie companion. Here's what I can do:\n\n"
-    f"{E_SEARCH} /search — Find any movie with rich details\n"
-    f"{E_BRAIN} /recommend — AI-powered personalized picks\n"
-    f"{E_LIST} /watchlist — Manage your want-to-watch list\n"
-    f"{E_CHECK} /watched — Log & rate movies you've seen\n"
-    f"{E_TV} /where — Find where to stream any movie\n"
-    f"{E_TROPHY} /compare — Compare two movies head-to-head\n"
-    f"{E_ROBOT} /explain — AI plot & ending explanations\n"
-    f"{E_CHART} /stats — Your watching statistics\n"
-    f"{E_BELL} /alerts — Release date notifications\n"
-    f"{E_DICE} /random — Surprise movie pick\n"
-    f"😊 /mood — Mood-based recommendations\n"
-    f"{E_KEY} /redeem — Activate Pro subscription\n"
-    f"{E_CROWN} /pro — View your plan & usage\n\n"
-    f"Just type a movie name to search, or use inline mode: <code>@CineBot movie name</code>"
+    f"{E_MOVIE} <b>CINEBOT</b> {E_POPCORN}\n"
+    f"{LINE}\n"
+    "Your AI-powered movie companion\n\n"
+    "─── ◆ Discover ◆ ───\n"
+    f"{E_SEARCH} /search — Find any movie\n"
+    f"{E_BRAIN} /recommend — AI picks for you\n"
+    f"{E_DICE} /random — Surprise me\n"
+    "😊 /mood — Match your vibe\n\n"
+    "─── ◆ Library ◆ ───\n"
+    f"{E_LIST} /watchlist — Save for later\n"
+    f"{E_CHECK} /watched — Movie diary\n"
+    f"{E_CHART} /stats — Your stats\n\n"
+    "─── ◆ Explore ◆ ───\n"
+    f"{E_TV} /where — Where to stream\n"
+    f"{E_TROPHY} /compare — Head to head\n"
+    f"{E_BRAIN} /explain — AI deep dive\n"
+    f"{E_BELL} /alerts — Release alerts\n\n"
+    "─── ◆ Account ◆ ───\n"
+    f"{E_KEY} /redeem — Activate Pro\n"
+    f"{E_CROWN} /pro — Your plan\n"
+    f"{E_PHONE} /contact — Reach us\n\n"
+    f"{LINE_LIGHT}\n"
+    f"💡 Type any movie name to search instantly"
 )
 
 MSG_HELP = (
-    f"{E_INFO} <b>CineBot Help</b>\n\n"
-    f"<b>Search & Discovery</b>\n"
-    f"  /search <code>movie name</code> — Detailed movie card\n"
-    f"  /recommend — Get AI recommendations\n"
-    f"  /random — Random movie suggestion\n"
-    f"  /mood — Pick by your mood\n\n"
-    f"<b>Your Library</b>\n"
-    f"  /watchlist — Your watch-later list\n"
-    f"  /watched — Your movie diary\n"
-    f"  /stats — Viewing statistics\n\n"
-    f"<b>Movie Info</b>\n"
-    f"  /where <code>movie name</code> — Streaming availability\n"
-    f"  /compare <code>movie A</code> vs <code>movie B</code> — Side-by-side\n"
-    f"  /explain <code>movie name</code> — AI analysis\n\n"
-    f"<b>Subscription</b>\n"
-    f"  /redeem <code>KEY</code> — Activate Pro\n"
-    f"  /pro — Plan details & usage\n"
-    f"  /alerts — Release notifications\n\n"
-    f"<b>Inline Mode</b>\n"
-    f"  Type <code>@CineBot query</code> in any chat"
+    f"{E_INFO} <b>CINEBOT HELP</b>\n"
+    f"{LINE}\n\n"
+    "─── ◆ Search & Discovery ◆ ───\n"
+    f"  {E_SEARCH} /search <code>name</code> — Movie details\n"
+    f"  {E_BRAIN} /recommend — Personalized picks\n"
+    f"  {E_DICE} /random — Random suggestion\n"
+    "  😊 /mood — Mood-based picks\n\n"
+    "─── ◆ Your Library ◆ ───\n"
+    f"  {E_LIST} /watchlist — Watch-later list\n"
+    f"  {E_CHECK} /watched — Movie diary\n"
+    f"  {E_CHART} /stats — Viewing stats\n\n"
+    "─── ◆ Movie Intel ◆ ───\n"
+    f"  {E_TV} /where <code>name</code> — Streaming info\n"
+    f"  {E_TROPHY} /compare <code>A vs B</code> — Compare\n"
+    f"  {E_BRAIN} /explain <code>name</code> — AI analysis\n\n"
+    "─── ◆ Account ◆ ───\n"
+    f"  {E_KEY} /redeem <code>KEY</code> — Activate Pro\n"
+    f"  {E_CROWN} /pro — Plan & usage\n"
+    f"  {E_BELL} /alerts — Release alerts\n"
+    f"  {E_PHONE} /contact — Support\n\n"
+    f"{LINE_LIGHT}\n"
+    "💡 <b>Inline:</b> Type <code>@YourBot movie</code> in any chat"
 )
 
 MSG_ONBOARDING_GENRES = (
-    f"{E_MOVIE} <b>Let's personalize your experience!</b>\n\n"
-    "Pick your favorite genres (select at least 2):"
+    f"{E_MOVIE} <b>Let's personalize your experience!</b>\n"
+    f"{LINE}\n\n"
+    "Pick your favorite genres (at least 2):"
 )
 
-MSG_RATE_LIMITED = f"{E_CLOCK} You're going too fast! Please wait a moment."
+MSG_RATE_LIMITED = (
+    f"{E_WAIT} <b>Slow down!</b>\n\n"
+    "Try again in 10 seconds."
+)
 
 MSG_PRO_REQUIRED = (
-    f"{E_LOCK} This is a <b>Pro</b> feature.\n\n"
-    f"Upgrade to Pro to unlock:\n"
-    f"  {E_SPARKLE} Unlimited searches & recommendations\n"
-    f"  {E_SPARKLE} Unlimited explains & watchlist\n"
-    f"  {E_SPARKLE} Advanced statistics\n"
-    f"  {E_SPARKLE} Priority support\n\n"
-    f"Contact an admin or use /redeem with a license key!"
-)
-
-MSG_PRO_STATUS = (
-    f"{E_CROWN} <b>Your Pro Status</b>\n\n"
-    "Plan: <b>{tier}</b>\n"
-    "Expires: <b>{expires}</b>\n"
-    "Days left: <b>{days_left}</b>\n\n"
-    "<b>Today's Usage:</b>\n"
-    f"  {E_SEARCH} Searches: {{searches}}\n"
-    f"  {E_BRAIN} Recommends: {{recommends}}\n"
-    f"  {E_ROBOT} Explains: {{explains}}\n"
-    f"  {E_LIST} Watchlist: {{watchlist}}"
+    f"{E_LOCK} <b>PRO Feature</b>\n"
+    f"{LINE}\n\n"
+    f"{E_SPARKLE} Unlimited searches & recs\n"
+    f"{E_SPARKLE} Unlimited explains\n"
+    f"{E_SPARKLE} Unlimited watchlist\n"
+    f"{E_SPARKLE} Priority support\n\n"
+    f"{E_KEY} Use /redeem or {E_PHONE} /contact"
 )
 
 MSG_KEY_REDEEMED = (
-    f"{E_PARTY} <b>Key Redeemed Successfully!</b>\n\n"
-    f"{E_CROWN} Plan: <b>Pro</b>\n"
+    f"{E_PARTY} <b>KEY REDEEMED!</b>\n"
+    f"{LINE}\n\n"
+    f"{E_CROWN} Plan: <b>PRO</b>\n"
     f"{E_CALENDAR} Duration: <b>{{duration}}</b>\n"
-    f"{E_CLOCK} Expires: <b>{{expires}}</b>\n\n"
-    f"Enjoy unlimited access to all features! {E_SPARKLE}"
+    f"{E_WAIT} Expires: <b>{{expires}}</b>\n\n"
+    f"{E_SPARKLE} Unlimited access unlocked! {E_POPCORN}"
 )
 
 MSG_EXPIRY_WARNING = (
-    f"{E_WARN} <b>Subscription Expiring Soon</b>\n\n"
-    "Your Pro subscription expires in <b>{days} days</b> ({date}).\n"
-    "Contact an admin to renew!"
+    f"{E_WARN} <b>SUBSCRIPTION EXPIRING</b>\n"
+    f"{LINE}\n\n"
+    f"{E_WAIT} Expires in <b>{{days}} day(s)</b>\n"
+    f"{E_CALENDAR} Date: <b>{{date}}</b>\n\n"
+    f"{E_KEY} /redeem to extend\n"
+    f"{E_PHONE} /contact to renew"
 )
 
 MSG_EXPIRED = (
-    f"{E_INFO} Your Pro subscription has expired.\n"
-    "You've been downgraded to the Free plan.\n"
-    "Use /redeem with a new key to reactivate Pro!"
+    f"{E_INFO} <b>Subscription Expired</b>\n"
+    f"{LINE}\n\n"
+    "Your Pro plan has ended.\n"
+    "You're now on the Free plan.\n\n"
+    f"{E_KEY} /redeem a new key to reactivate\n"
+    f"{E_PHONE} /contact for help"
 )
 
-MSG_NO_RESULTS = f"{E_SEARCH} No results found. Try a different search term."
-MSG_WATCHLIST_EMPTY = f"{E_LIST} Your watchlist is empty. Use /search to find movies to add!"
-MSG_WATCHED_EMPTY = f"{E_FILM} You haven't logged any movies yet. Use /watched after watching a film!"
-MSG_MILESTONE = f"{E_PARTY} <b>Milestone!</b> You've watched <b>{{count}}</b> movies! {E_CLAP}"
+MSG_NO_RESULTS = (
+    f"{E_SEARCH} <b>Nothing Found</b>\n\n"
+    "Can't find that 🙈\n\n"
+    "💡 Check spelling or try the English title"
+)
+
+MSG_WATCHLIST_EMPTY = (
+    f"{E_LIST} <b>Nothing here yet</b> — let's fix that! {E_MOVIE}\n\n"
+    f"Use /search to find movies to save"
+)
+
+MSG_WATCHED_EMPTY = (
+    f"{E_FILM} <b>No movies logged yet</b>\n\n"
+    "Mark a movie as watched after you see it!\n"
+    f"Use /search to get started {E_POPCORN}"
+)
+
+MSG_MILESTONE = (
+    f"{E_PARTY} <b>MILESTONE!</b>\n"
+    f"{LINE}\n\n"
+    f"You've watched <b>{{count}}</b> movies! {E_CLAP}\n"
+    "Keep the streak going! 🍿"
+)

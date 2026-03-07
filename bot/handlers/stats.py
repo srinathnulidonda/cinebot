@@ -7,7 +7,7 @@ from bot.middleware.analytics import track_command
 from bot.models.engine import get_session
 from bot.models.watched import WatchedRepo
 from bot.utils.formatters import format_stats, build_genre_bars
-from bot.utils.constants import E_CHART, MSG_WATCHED_EMPTY
+from bot.utils.constants import MSG_WATCHED_EMPTY
 
 logger = logging.getLogger(__name__)
 

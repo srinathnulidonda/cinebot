@@ -10,7 +10,7 @@ from bot.models.engine import get_session
 from bot.models.user import UserRepo
 from bot.utils.formatters import format_recommendation_list
 from bot.utils.keyboards import recommend_type_kb, mood_kb, search_results_kb
-from bot.utils.constants import E_BRAIN, TMDB_GENRES
+from bot.utils.constants import E_BRAIN, TMDB_GENRES, LINE
 from bot import CineBotError
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 def _rec_genre_kb(selected: set[int] | None = None) -> InlineKeyboardMarkup:
     selected = selected or set()
-    buttons = []
-    row = []
+    buttons: list[list[InlineKeyboardButton]] = []
+    row: list[InlineKeyboardButton] = []
     for gid, name in sorted(TMDB_GENRES.items(), key=lambda x: x[1]):
         prefix = "✅ " if gid in selected else ""
         row.append(InlineKeyboardButton(f"{prefix}{name}", callback_data=f"rg_sel:{gid}"))
@@ -41,7 +41,9 @@ async def recommend_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     is_pro = user.is_pro if user else False
     await check_rate_limit(telegram_id, "recommend", is_pro)
     await update.message.reply_text(
-        f"{E_BRAIN} <b>How would you like your recommendations?</b>",
+        f"{E_BRAIN} <b>RECOMMENDATIONS</b>\n"
+        f"{LINE}\n\n"
+        "How would you like your picks?",
         reply_markup=recommend_type_kb(),
         parse_mode="HTML",
     )
@@ -52,29 +54,34 @@ async def rec_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.answer()
     rec_type = query.data.split(":")[1]
     await ensure_user(update, context)
-    telegram_id = update.effective_user.id
 
     if rec_type == "mood":
         await query.edit_message_text(
-            "😊 <b>What's your mood?</b>",
+            "😊 <b>What's your mood?</b>\n"
+            f"{LINE}\n\n"
+            "Pick one and I'll find the perfect match:",
             reply_markup=mood_kb(),
             parse_mode="HTML",
         )
     elif rec_type == "genre":
         context.user_data["rec_genres"] = set()
         await query.edit_message_text(
-            "🎭 <b>Select genres for recommendations:</b>",
+            "🎭 <b>SELECT GENRES</b>\n"
+            f"{LINE}\n\n"
+            "Pick genres for your recommendations:",
             reply_markup=_rec_genre_kb(),
             parse_mode="HTML",
         )
     elif rec_type == "similar":
         context.user_data["awaiting_similar_movie"] = True
         await query.edit_message_text(
-            f"{E_BRAIN} <b>Type the name of a movie you want similar recommendations for:</b>",
+            f"{E_BRAIN} <b>SIMILAR MOVIES</b>\n"
+            f"{LINE}\n\n"
+            "Type the name of a movie you love:",
             parse_mode="HTML",
         )
     elif rec_type == "surprise":
-        await _generate_and_send(query, telegram_id, "surprise")
+        await _generate_and_send(query, update.effective_user.id, "surprise")
 
 
 async def rec_genre_select_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -94,7 +101,7 @@ async def rec_genre_done_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     selected = context.user_data.get("rec_genres", set())
     if not selected:
-        await query.answer("Select at least one genre!", show_alert=True)
+        await query.answer("Pick at least one genre! 🎭", show_alert=True)
         return
     await query.answer()
     telegram_id = update.effective_user.id
@@ -112,7 +119,10 @@ async def rec_mood_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def _generate_and_send(query, telegram_id: int, mode: str) -> None:
-    await query.edit_message_text(f"{E_BRAIN} Generating personalized recommendations...", parse_mode="HTML")
+    await query.edit_message_text(
+        f"{E_BRAIN} Finding your perfect picks...\n⏳ This may take a moment",
+        parse_mode="HTML",
+    )
     try:
         async with get_session() as session:
             user = await UserRepo.get_by_telegram_id(session, telegram_id)
@@ -120,7 +130,9 @@ async def _generate_and_send(query, telegram_id: int, mode: str) -> None:
         movies = await recommendation_engine.recommend_surprise(user_db_id)
         await increment_usage(telegram_id, "recommend")
         if not movies:
-            await query.edit_message_text("😕 Couldn't generate recommendations. Try again!", parse_mode="HTML")
+            await query.edit_message_text(
+                "😕 Couldn't generate picks. Try again! 🎬", parse_mode="HTML",
+            )
             return
         text = format_recommendation_list(movies, "🎲 Surprise Picks")
         kb = search_results_kb(movies) if movies else None
@@ -131,8 +143,10 @@ async def _generate_and_send(query, telegram_id: int, mode: str) -> None:
 
 async def _generate_genre_recs(query, telegram_id: int, genre_ids: list[int]) -> None:
     genre_names = [TMDB_GENRES.get(g, "?") for g in genre_ids]
+    tags = " ".join(f"⌈{n}⌋" for n in genre_names)
     await query.edit_message_text(
-        f"{E_BRAIN} Finding movies in {', '.join(genre_names)}...", parse_mode="HTML",
+        f"{E_BRAIN} Finding movies in {tags}...\n⏳ This may take a moment",
+        parse_mode="HTML",
     )
     try:
         async with get_session() as session:
@@ -141,9 +155,11 @@ async def _generate_genre_recs(query, telegram_id: int, genre_ids: list[int]) ->
         movies = await recommendation_engine.recommend_by_genre(user_db_id, genre_ids)
         await increment_usage(telegram_id, "recommend")
         if not movies:
-            await query.edit_message_text("😕 No recommendations found for these genres.", parse_mode="HTML")
+            await query.edit_message_text(
+                f"😕 No picks for {tags}. Try different genres! 🎭", parse_mode="HTML",
+            )
             return
-        text = format_recommendation_list(movies, f"🎭 {', '.join(genre_names)} Picks")
+        text = format_recommendation_list(movies, f"🎭 {', '.join(genre_names)}")
         kb = search_results_kb(movies) if movies else None
         await query.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
     except CineBotError as e:
@@ -151,7 +167,10 @@ async def _generate_genre_recs(query, telegram_id: int, genre_ids: list[int]) ->
 
 
 async def _generate_mood_recs(query, telegram_id: int, mood: str) -> None:
-    await query.edit_message_text(f"{E_BRAIN} Finding movies for your mood: {mood}...", parse_mode="HTML")
+    await query.edit_message_text(
+        f"{E_BRAIN} Matching your {mood} vibe...\n⏳ This may take a moment",
+        parse_mode="HTML",
+    )
     try:
         async with get_session() as session:
             user = await UserRepo.get_by_telegram_id(session, telegram_id)
@@ -159,9 +178,11 @@ async def _generate_mood_recs(query, telegram_id: int, mood: str) -> None:
         movies = await recommendation_engine.recommend_by_mood(user_db_id, mood)
         await increment_usage(telegram_id, "recommend")
         if not movies:
-            await query.edit_message_text("😕 No mood-based recommendations found.", parse_mode="HTML")
+            await query.edit_message_text(
+                "😕 No mood-based picks found. Try again! 🎬", parse_mode="HTML",
+            )
             return
-        text = format_recommendation_list(movies, f"{mood} Recommendations")
+        text = format_recommendation_list(movies, f"{mood} Picks")
         kb = search_results_kb(movies) if movies else None
         await query.edit_message_text(text, reply_markup=kb, parse_mode="HTML")
     except CineBotError as e:

@@ -4,8 +4,8 @@ import hashlib
 from telegram import Update, InlineQueryResultArticle, InputTextMessageContent
 from telegram.ext import ContextTypes, InlineQueryHandler
 from bot.services import tmdb_service
-from bot.utils.formatters import format_movie_card
-from bot.utils.constants import TMDB_GENRES, E_MOVIE
+from bot.utils.formatters import genre_tags, star_rating, format_votes
+from bot.utils.constants import TMDB_GENRES, E_MOVIE, E_STAR, LINE
 
 logger = logging.getLogger(__name__)
 
@@ -27,25 +27,30 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         title = movie.get("title", "Unknown")
         year = movie.get("release_date", "")[:4]
         rating = movie.get("vote_average", 0)
+        votes = movie.get("vote_count", 0)
         overview = movie.get("overview", "No overview available.")[:200]
-        genres = ", ".join(TMDB_GENRES.get(g, "") for g in movie.get("genre_ids", []) if g in TMDB_GENRES)
+        tags = genre_tags(movie.get("genre_ids"))
+        stars = star_rating(rating)
         poster = movie.get("poster_path")
         thumb_url = f"https://image.tmdb.org/t/p/w92{poster}" if poster else None
 
         text = (
             f"{E_MOVIE} <b>{title}</b> ({year})\n"
-            f"⭐ {rating:.1f}/10\n"
-            f"🎭 {genres}\n\n"
+            f"{LINE}\n"
+            f"{E_STAR} <b>{rating:.1f}</b>/10 {stars} · 🗳 {format_votes(votes)}\n"
+            f"🎭 {tags}\n\n"
             f"📝 {overview}\n\n"
             f"<i>Powered by CineBot 🍿</i>"
         )
 
         result_id = hashlib.md5(f"{mid}".encode()).hexdigest()
+        genre_str = ", ".join(TMDB_GENRES.get(g, "") for g in movie.get("genre_ids", []) if g in TMDB_GENRES)[:50]
+
         articles.append(
             InlineQueryResultArticle(
                 id=result_id,
                 title=f"🎬 {title} ({year})",
-                description=f"⭐ {rating:.1f} | {genres[:50]}",
+                description=f"⭐ {rating:.1f} · {genre_str}",
                 input_message_content=InputTextMessageContent(text, parse_mode="HTML"),
                 thumbnail_url=thumb_url,
             )
