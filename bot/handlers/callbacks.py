@@ -2,6 +2,7 @@
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackQueryHandler
+from bot.middleware.subscription_check import ensure_user
 from bot.services import tmdb_service, youtube_service
 from bot.utils.constants import LINE
 
@@ -53,16 +54,15 @@ async def back_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text(MSG_WELCOME, parse_mode="HTML")
 
 
-async def contact_support_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def contact_admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     await query.message.reply_text(
-        "📞 <b>CONTACT SUPPORT</b>\n"
+        "📞 <b>CONTACT ADMIN</b>\n"
         f"{LINE}\n\n"
         "Send your message:\n"
         "<code>/contact Your message here</code>\n\n"
-        "💡 <code>/contact I want to buy Pro</code>\n\n"
-        "Our support team will reply directly here.",
+        "💡 <code>/contact I want to buy Pro</code>",
         parse_mode="HTML",
     )
 
@@ -79,5 +79,5 @@ def get_handlers() -> list:
         CallbackQueryHandler(noop_callback, pattern=r"^noop$"),
         CallbackQueryHandler(cancel_callback, pattern=r"^cancel$"),
         CallbackQueryHandler(back_main_callback, pattern=r"^back_main$"),
-        CallbackQueryHandler(contact_support_callback, pattern=r"^contact:admin$"),
+        CallbackQueryHandler(contact_admin_callback, pattern=r"^contact:admin$"),
     ]

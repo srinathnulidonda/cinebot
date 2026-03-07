@@ -33,12 +33,6 @@ class Priority(str, enum.Enum):
     LOW = "LOW"
 
 
-class TicketStatus(str, enum.Enum):
-    OPEN = "OPEN"
-    REPLIED = "REPLIED"
-    CLOSED = "CLOSED"
-
-
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (Index("ix_users_sub_expires", "subscription_tier", "subscription_expires_at"),)
@@ -66,7 +60,6 @@ class User(Base):
     watched_movies: Mapped[list["WatchedMovie"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     preferences: Mapped["UserPreference | None"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     alerts: Mapped[list["ReleaseAlert"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    support_tickets: Mapped[list["SupportTicket"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     @property
     def is_pro(self) -> bool:
@@ -186,39 +179,3 @@ class ReleaseAlert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="alerts")
-
-
-class SupportTicket(Base):
-    __tablename__ = "support_tickets"
-    __table_args__ = (
-        Index("ix_tickets_user_status", "user_id", "status"),
-        Index("ix_tickets_status", "status"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user_telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    status: Mapped[TicketStatus] = mapped_column(
-        SAEnum(TicketStatus, name="ticket_status_enum", create_constraint=True),
-        default=TicketStatus.OPEN, server_default="OPEN",
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    user: Mapped["User"] = relationship(back_populates="support_tickets")
-    messages: Mapped[list["SupportMessage"]] = relationship(back_populates="ticket", cascade="all, delete-orphan", order_by="SupportMessage.created_at")
-
-
-class SupportMessage(Base):
-    __tablename__ = "support_messages"
-    __table_args__ = (Index("ix_support_msgs_ticket", "ticket_id"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticket_id: Mapped[int] = mapped_column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False)
-    sender_telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    message_text: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    ticket: Mapped["SupportTicket"] = relationship(back_populates="messages")

@@ -12,7 +12,7 @@ from bot.models.engine import init_db, close_db
 from bot.handlers import (
     start, search, recommend, watchlist, watched,
     where, compare, explain, stats, alerts,
-    random as random_handler, mood, inline, redeem, admin, callbacks, contact,
+    random as random_handler, mood, inline, redeem, admin, callbacks, contact, support,
 )
 from bot.jobs.daily_suggestion import daily_suggestion_job
 from bot.jobs.release_alerts import release_alerts_job
@@ -25,9 +25,6 @@ from bot import CineBotError
 
 logger = logging.getLogger(__name__)
 _s = get_settings()
-
-_main_bot_app: Application | None = None
-_support_bot_app: Application | None = None
 
 BOT_COMMANDS = [
     BotCommand("start", "Start the bot"),
@@ -45,7 +42,8 @@ BOT_COMMANDS = [
     BotCommand("mood", "Mood-based picks"),
     BotCommand("redeem", "Redeem a Pro key"),
     BotCommand("pro", "View your plan"),
-    BotCommand("contact", "Contact support"),
+    BotCommand("chat", "Live chat with support"),
+    BotCommand("endchat", "End chat session"),
 ]
 
 
@@ -81,7 +79,7 @@ async def error_handler(update: object, context) -> None:
                 await update.effective_message.reply_text(
                     "⚠️ <b>Unexpected Error</b>\n\n"
                     "Something went wrong. Try again shortly.\n\n"
-                    "📞 /contact if this persists",
+                    "📞 /chat if this persists",
                     parse_mode="HTML",
                     reply_markup=rate_limit_kb(),
                 )
@@ -92,6 +90,19 @@ async def error_handler(update: object, context) -> None:
 async def text_message_handler(update: Update, context) -> None:
     if not update.message or not update.message.text:
         return
+
+    user_id = update.effective_user.id
+
+    if update.message.reply_to_message and user_id in _s.ADMIN_IDS:
+        handled = await support.admin_text_reply(update, context)
+        if handled:
+            return
+
+    from bot.services import chat_service
+    if await chat_service.is_in_chat(user_id):
+        if not update.message.text.startswith("/"):
+            await contact.user_chat_message(update, context)
+            return
 
     awaiting_review = context.user_data.get("awaiting_review_for")
     if awaiting_review:
@@ -164,14 +175,80 @@ async def text_message_handler(update: Update, context) -> None:
             pass
 
 
+async def media_message_handler(update: Update, context) -> None:
+    if not update.message or not update.effective_user:
+        return
+
+    user_id = update.effective_user.id
+
+    if update.message.reply_to_message and user_id in _s.ADMIN_IDS:
+        handled = await support.admin_media_reply(update, context)
+        if handled:
+            return
+
+    from bot.services import chat_service
+    if await chat_service.is_in_chat(user_id):
+        await contact.user_chat_media(update, context)
+        return
+
+
+async def start_chat_callback(update: Update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    from bot.services import chat_service
+    if await chat_service.is_blocked(user_id):
+        await query.message.reply_text(
+            "❌ You are currently blocked from support.\nPlease try again later.",
+            parse_mode="HTML",
+        )
+        return
+
+    if await chat_service.is_in_chat(user_id):
+        await query.message.reply_text(
+            "📞 You're already in a chat session.\n\n"
+            "Just type your message here.\n"
+            "Use /endchat when done.",
+            parse_mode="HTML",
+        )
+        return
+
+    chat_id = await chat_service.start_chat(user_id)
+    ctx = await chat_service.get_user_context(user_id)
+
+    await query.message.reply_text(
+        "✅ <b>LIVE CHAT STARTED</b>\n"
+        f"{LINE}\n\n"
+        "You're now connected to support.\n"
+        "Type your message and we'll respond here.\n\n"
+        "📎 You can send text, photos, videos, docs & voice.\n"
+        "Use /endchat to close this session.",
+        parse_mode="HTML",
+    )
+
+    from bot.handlers.contact import _format_admin_header
+    from bot.utils.keyboards import support_admin_kb
+    header = _format_admin_header(chat_id, ctx, "📩 <b>New chat session started</b>")
+    kb = support_admin_kb(chat_id, user_id)
+
+    for admin_id in _s.ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                admin_id, header, reply_markup=kb, parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+    await chat_service.save_message(chat_id, "system", "Chat session started")
+
+
 async def post_init(application: Application) -> None:
-    global _main_bot_app
-    _main_bot_app = application
     await init_db()
     from bot.services import ai_service
     ai_service._init_providers()
     await application.bot.set_my_commands(BOT_COMMANDS)
-    logger.info("CineBot initialized, database ready, commands set")
+    logger.info("Bot initialized, database ready, commands set")
 
 
 async def post_shutdown(application: Application) -> None:
@@ -181,18 +258,22 @@ async def post_shutdown(application: Application) -> None:
     await streaming_service.close()
     await ai_service.close()
     await close_db()
-    logger.info("CineBot shutdown complete")
+    logger.info("Bot shutdown complete")
 
 
 def _register_handlers(app: Application) -> None:
     handler_modules = [
         start, search, recommend, watchlist, watched,
         where, compare, explain, stats, alerts,
-        random_handler, mood, inline, redeem, admin, contact, callbacks,
+        random_handler, mood, inline, redeem, admin, contact, support, callbacks,
     ]
     for module in handler_modules:
         for handler in module.get_handlers():
             app.add_handler(handler)
+
+    app.add_handler(
+        CallbackQueryHandler(start_chat_callback, pattern=r"^start_chat$"),
+    )
 
     app.add_handler(
         CallbackQueryHandler(callbacks.unknown_callback),
@@ -201,6 +282,16 @@ def _register_handlers(app: Application) -> None:
 
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler),
+        group=1,
+    )
+
+    app.add_handler(
+        MessageHandler(
+            (filters.PHOTO | filters.VIDEO | filters.Document.ALL |
+             filters.VOICE | filters.VIDEO_NOTE | filters.Sticker.ALL |
+             filters.AUDIO | filters.ANIMATION) & ~filters.COMMAND,
+            media_message_handler,
+        ),
         group=1,
     )
 
@@ -269,73 +360,18 @@ def build_application() -> Application:
     return app
 
 
-def build_support_application() -> Application | None:
-    global _support_bot_app
-    if not _s.SUPPORT_BOT_TOKEN:
-        logger.info("No SUPPORT_BOT_TOKEN set, support bot disabled")
-        return None
-    from bot.support.bot import build_support_bot
-    _support_bot_app = build_support_bot()
-    return _support_bot_app
-
-
 def run_polling() -> None:
-    import asyncio
-
-    async def _run_both():
-        global _main_bot_app, _support_bot_app
-        main_app = build_application()
-        support_app = build_support_application()
-
-        await main_app.initialize()
-        await main_app.start()
-        await main_app.updater.start_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True,
-        )
-        logger.info("CineBot polling started")
-
-        if support_app:
-            await support_app.initialize()
-            await support_app.start()
-            await support_app.updater.start_polling(
-                allowed_updates=Update.ALL_TYPES,
-                drop_pending_updates=True,
-            )
-            logger.info("Support bot polling started")
-
-        stop_event = asyncio.Event()
-
-        import signal
-        def _signal_handler():
-            stop_event.set()
-
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                loop.add_signal_handler(sig, _signal_handler)
-            except NotImplementedError:
-                pass
-
-        await stop_event.wait()
-
-        logger.info("Shutting down bots...")
-        if support_app:
-            await support_app.updater.stop()
-            await support_app.stop()
-            await support_app.shutdown()
-        await main_app.updater.stop()
-        await main_app.stop()
-        await main_app.shutdown()
-
-    asyncio.run(_run_both())
+    app = build_application()
+    logger.info("Starting CineBot in polling mode")
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+        close_loop=False,
+    )
 
 
 def run_webhook() -> None:
     app = build_application()
-    support_app = build_support_application()
-    if support_app:
-        logger.warning("Support bot in webhook mode requires separate deployment or custom setup")
     logger.info(f"Starting CineBot in webhook mode: {_s.webhook_full_url}")
     app.run_webhook(
         listen="0.0.0.0",
