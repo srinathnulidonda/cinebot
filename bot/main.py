@@ -12,7 +12,7 @@ from bot.models.engine import init_db, close_db
 from bot.handlers import (
     start, search, recommend, watchlist, watched,
     where, compare, explain, stats, alerts,
-    random as random_handler, mood, inline, redeem, admin, callbacks, contact,
+    random as random_handler, mood, inline, redeem, admin, callbacks, contact, support,
 )
 from bot.jobs.daily_suggestion import daily_suggestion_job
 from bot.jobs.release_alerts import release_alerts_job
@@ -42,7 +42,8 @@ BOT_COMMANDS = [
     BotCommand("mood", "Mood-based picks"),
     BotCommand("redeem", "Redeem a Pro key"),
     BotCommand("pro", "View your plan"),
-    BotCommand("contact", "Contact admin support"),
+    BotCommand("chat", "Live chat with support"),
+    BotCommand("endchat", "End chat session"),
 ]
 
 
@@ -78,7 +79,7 @@ async def error_handler(update: object, context) -> None:
                 await update.effective_message.reply_text(
                     "⚠️ <b>Unexpected Error</b>\n\n"
                     "Something went wrong. Try again shortly.\n\n"
-                    "📞 /contact if this persists",
+                    "📞 /chat if this persists",
                     parse_mode="HTML",
                     reply_markup=rate_limit_kb(),
                 )
@@ -90,11 +91,18 @@ async def text_message_handler(update: Update, context) -> None:
     if not update.message or not update.message.text:
         return
 
-    replying_ticket = context.user_data.get("replying_ticket")
-    if replying_ticket:
-        from bot.handlers.contact import admin_reply_handler
-        await admin_reply_handler(update, context)
-        return
+    user_id = update.effective_user.id
+
+    if update.message.reply_to_message and user_id in _s.ADMIN_IDS:
+        handled = await support.admin_text_reply(update, context)
+        if handled:
+            return
+
+    from bot.services import chat_service
+    if await chat_service.is_in_chat(user_id):
+        if not update.message.text.startswith("/"):
+            await contact.user_chat_message(update, context)
+            return
 
     awaiting_review = context.user_data.get("awaiting_review_for")
     if awaiting_review:
@@ -167,6 +175,74 @@ async def text_message_handler(update: Update, context) -> None:
             pass
 
 
+async def media_message_handler(update: Update, context) -> None:
+    if not update.message or not update.effective_user:
+        return
+
+    user_id = update.effective_user.id
+
+    if update.message.reply_to_message and user_id in _s.ADMIN_IDS:
+        handled = await support.admin_media_reply(update, context)
+        if handled:
+            return
+
+    from bot.services import chat_service
+    if await chat_service.is_in_chat(user_id):
+        await contact.user_chat_media(update, context)
+        return
+
+
+async def start_chat_callback(update: Update, context) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    from bot.services import chat_service
+    if await chat_service.is_blocked(user_id):
+        await query.message.reply_text(
+            "❌ You are currently blocked from support.\nPlease try again later.",
+            parse_mode="HTML",
+        )
+        return
+
+    if await chat_service.is_in_chat(user_id):
+        await query.message.reply_text(
+            "📞 You're already in a chat session.\n\n"
+            "Just type your message here.\n"
+            "Use /endchat when done.",
+            parse_mode="HTML",
+        )
+        return
+
+    chat_id = await chat_service.start_chat(user_id)
+    ctx = await chat_service.get_user_context(user_id)
+
+    await query.message.reply_text(
+        "✅ <b>LIVE CHAT STARTED</b>\n"
+        f"{LINE}\n\n"
+        "You're now connected to support.\n"
+        "Type your message and we'll respond here.\n\n"
+        "📎 You can send text, photos, videos, docs & voice.\n"
+        "Use /endchat to close this session.",
+        parse_mode="HTML",
+    )
+
+    from bot.handlers.contact import _format_admin_header
+    from bot.utils.keyboards import support_admin_kb
+    header = _format_admin_header(chat_id, ctx, "📩 <b>New chat session started</b>")
+    kb = support_admin_kb(chat_id, user_id)
+
+    for admin_id in _s.ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                admin_id, header, reply_markup=kb, parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+    await chat_service.save_message(chat_id, "system", "Chat session started")
+
+
 async def post_init(application: Application) -> None:
     await init_db()
     from bot.services import ai_service
@@ -189,11 +265,15 @@ def _register_handlers(app: Application) -> None:
     handler_modules = [
         start, search, recommend, watchlist, watched,
         where, compare, explain, stats, alerts,
-        random_handler, mood, inline, redeem, admin, contact, callbacks,
+        random_handler, mood, inline, redeem, admin, contact, support, callbacks,
     ]
     for module in handler_modules:
         for handler in module.get_handlers():
             app.add_handler(handler)
+
+    app.add_handler(
+        CallbackQueryHandler(start_chat_callback, pattern=r"^start_chat$"),
+    )
 
     app.add_handler(
         CallbackQueryHandler(callbacks.unknown_callback),
@@ -202,6 +282,16 @@ def _register_handlers(app: Application) -> None:
 
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler),
+        group=1,
+    )
+
+    app.add_handler(
+        MessageHandler(
+            (filters.PHOTO | filters.VIDEO | filters.Document.ALL |
+             filters.VOICE | filters.VIDEO_NOTE | filters.Sticker.ALL |
+             filters.AUDIO | filters.ANIMATION) & ~filters.COMMAND,
+            media_message_handler,
+        ),
         group=1,
     )
 

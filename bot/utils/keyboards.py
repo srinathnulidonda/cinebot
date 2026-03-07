@@ -4,7 +4,7 @@ from bot.utils.constants import TMDB_GENRES, MOOD_MAP, KEY_TYPES, E_ARROW_L, E_A
 
 
 def _contact_row() -> list[list[Btn]]:
-    return [[Btn("📞 Contact", callback_data="contact:admin")]]
+    return [[Btn("📞 Live Chat", callback_data="start_chat")]]
 
 
 def movie_detail_kb(movie_id: int, in_watchlist: bool = False) -> Mk:
@@ -159,6 +159,7 @@ def admin_dashboard_kb() -> Mk:
         ],
         [
             Btn("🖥️ Backend", callback_data="adm:backend"),
+            Btn("💬 Chats", callback_data="adm:chats"),
         ],
     ])
 
@@ -211,10 +212,30 @@ def rate_limit_kb() -> Mk:
     return Mk([
         [
             Btn("👑 Upgrade", callback_data="view_plans"),
-            Btn("📞 Contact", callback_data="contact:admin"),
+            Btn("📞 Live Chat", callback_data="start_chat"),
         ],
     ])
 
 
 def back_button(callback_data: str = "back_main") -> Mk:
     return Mk([[Btn(f"{E_ARROW_L} Back", callback_data=callback_data)]])
+
+
+def support_admin_kb(chat_id: int, user_id: int) -> Mk:
+    return Mk([
+        [
+            Btn("💬 Reply", callback_data=f"sr:{chat_id}:{user_id}"),
+            Btn("💰 Plans", callback_data=f"sp:{user_id}"),
+            Btn("🎁 Gift", callback_data=f"sg:{user_id}"),
+        ],
+        [
+            Btn("👤 Info", callback_data=f"si:{user_id}"),
+            Btn("📜 History", callback_data=f"sh:{chat_id}"),
+            Btn("⏸ Hold", callback_data=f"shold:{chat_id}:{user_id}"),
+        ],
+        [
+            Btn("⚡ Quick", callback_data=f"sq:{chat_id}:{user_id}"),
+            Btn("✅ Close", callback_data=f"sc:{chat_id}:{user_id}"),
+            Btn("🚫 Block", callback_data=f"sb:{chat_id}:{user_id}"),
+        ],
+    ])

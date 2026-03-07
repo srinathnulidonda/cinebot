@@ -54,6 +54,12 @@ class Settings(BaseSettings):
 
     ITEMS_PER_PAGE: int = 5
 
+    CHAT_SESSION_TTL: int = 86400
+    CHAT_HISTORY_TTL: int = 604800
+    CHAT_BLOCK_TTL: int = 604800
+    CHAT_RATE_LIMIT_INTERVAL: int = 2
+    CHAT_RATE_LIMIT_HOURLY: int = 30
+
     @property
     def async_database_url(self) -> str:
         url = self.DATABASE_URL
