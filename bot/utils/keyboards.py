@@ -144,18 +144,21 @@ def admin_dashboard_kb() -> Mk:
     return Mk([
         [
             Btn("📊 Stats", callback_data="adm:stats"),
-            Btn("🔑 Gen Key", callback_data="adm:genkey"),
-            Btn("📦 Bulk", callback_data="adm:bulkkeys"),
+            Btn("🖥️ Backend", callback_data="adm:backend"),
         ],
         [
-            Btn("🔍 Key Info", callback_data="adm:keyinfo"),
-            Btn("👤 Lookup", callback_data="adm:userlookup"),
+            Btn("🔑 Gen", callback_data="adm:genkey"),
+            Btn("📦 Bulk", callback_data="adm:bulkkeys"),
+            Btn("🔍 Key", callback_data="adm:keyinfo"),
+        ],
+        [
+            Btn("👤 User", callback_data="adm:userlookup"),
             Btn("📢 Broadcast", callback_data="adm:broadcast"),
         ],
         [
             Btn("📋 List", callback_data="adm:listkeys:1"),
             Btn("🚫 Revoke", callback_data="adm:revoke"),
-            Btn("🤖 AI Status", callback_data="adm:aistatus"),
+            Btn("🤖 AI", callback_data="adm:aistatus"),
         ],
     ])
 

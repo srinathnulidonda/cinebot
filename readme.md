@@ -1,155 +1,253 @@
-# 🎬 CineBot — AI-Powered Telegram Movie Companion
+<div align="center">
 
-Production-grade Telegram bot for movie discovery, tracking, and AI-powered recommendations.
+# 🎬 CineBot
 
-## Features
+**AI-Powered Telegram Movie Companion**
 
-- **🔍 Search** — Rich movie cards with ratings, cast, posters
-- **🧠 Recommend** — AI-powered personalized picks (mood/genre/similar/surprise)
-- **📋 Watchlist** — Priority-based watch-later list
-- **✅ Watched** — Movie diary with ratings and reviews
-- **📺 Where to Watch** — Streaming availability by region
-- **🏆 Compare** — Side-by-side movie comparison with AI analysis
-- **🤖 Explain** — AI plot/ending/hidden details analysis
-- **📊 Stats** — Visual watching statistics with genre breakdown
-- **🔔 Alerts** — Release date notifications
-- **🎲 Random** — Surprise movie picks with genre filters
-- **😊 Mood** — Mood-based recommendations
-- **👑 Pro System** — License key monetization with admin management
+Your personal movie discovery, tracking & recommendation engine — right inside Telegram.
 
-## Tech Stack
+━━━━━━━━━━━━━━━━━━━━━
 
-| Component | Technology |
-|-----------|-----------|
-| Bot Framework | python-telegram-bot v20+ (async) |
-| Language | Python 3.11+ |
-| Database | PostgreSQL (async via asyncpg + SQLAlchemy 2.0) |
-| Cache | Redis |
-| Movie Data | TMDb API v3 |
-| AI | OpenAI GPT-4o-mini |
-| Trailers | YouTube Data API v3 |
-| Streaming | Streaming Availability API + TMDb Providers |
+[Features](#-features) · [Setup](#-setup) · [Commands](#-commands) · [Plans](#-free-vs-pro) · [Deploy](#-deployment)
 
-## Setup
+━━━━━━━━━━━━━━━━━━━━━
 
-### 1. Prerequisites
+</div>
 
-```bash
-# PostgreSQL
-sudo apt install postgresql
-createdb cinebot
+## ✨ Features
 
-# Redis
-sudo apt install redis-server
+<table>
+<tr>
+<td width="50%">
+
+### 🔍 Discover
+- **Search** — Rich cards with ratings, cast & posters
+- **Recommend** — AI picks by mood, genre or taste
+- **Random** — Surprise picks with genre filters
+- **Mood** — "How are you feeling?" → perfect movie
+
+</td>
+<td width="50%">
+
+### 📋 Track
+- **Watchlist** — Priority-based save-for-later
+- **Watched** — Movie diary with ★ ratings & reviews
+- **Stats** — Visual genre bars & milestones
+- **Alerts** — Release date notifications
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🧠 AI-Powered
+- **Explain** — Plot, ending, hidden details, characters
+- **Compare** — Side-by-side showdown with AI verdict
+- **Daily Picks** — Personalized morning suggestions
+- **7 AI Providers** — Auto-failover for 100% uptime
+
+</td>
+<td>
+
+### 👑 Monetization
+- **License Keys** — `CINE-XXXX-XXXX-XXXX-XXXX`
+- **Plans** — 1M · 2M · 3M · 6M · 1Y
+- **Admin Dashboard** — Generate, revoke, gift, broadcast
+- **Support Tickets** — Built-in contact system
+
+</td>
+</tr>
+</table>
+
+## 🛠 Tech Stack
+
+```
+Bot Framework    python-telegram-bot v20+ (async)
+Runtime          Python 3.11+
+Database         PostgreSQL + SQLAlchemy 2.0 (asyncpg)
+Cache            Redis
+Movie Data       TMDb API v3
+AI Providers     Gemini · Groq · OpenRouter · Mistral · Cohere · HuggingFace · Cloudflare
+Trailers         YouTube Data API v3
+Streaming        TMDb Watch Providers + RapidAPI fallback
 ```
 
-### 2. Install Dependencies
+## 🚀 Setup
+
+### 1 → Install
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+git clone https://github.com/your-repo/cinebot.git
+cd cinebot
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+### 2 → Configure
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
 ```
 
-Required keys:
-- `BOT_TOKEN` — From @BotFather
-- `DATABASE_URL` — PostgreSQL connection string
-- `TMDB_API_KEY` — From themoviedb.org
-- `OPENAI_API_KEY` — From platform.openai.com
-- `YOUTUBE_API_KEY` — From Google Cloud Console
-- `STREAMING_API_KEY` — From RapidAPI
-- `ADMIN_IDS` — JSON array of admin Telegram user IDs
+```env
+# Required
+BOT_TOKEN=your_bot_token
+DATABASE_URL=postgresql://user:pass@localhost:5432/cinebot
+TMDB_API_KEY=your_tmdb_key
+YOUTUBE_API_KEY=your_youtube_key
+STREAMING_API_KEY=your_rapidapi_key
+ADMIN_IDS=[123456789]
 
-### 4. Run
+# AI (at least one)
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+
+# Optional
+REDIS_URL=redis://localhost:6379/0
+```
+
+### 3 → Initialize
 
 ```bash
-# Polling mode (development)
-python run.py
-
-# Webhook mode (production)
-USE_WEBHOOK=true python run.py
+python scripts/setup_db.py
+python scripts/health_check.py
 ```
 
-## Admin Commands
+### 4 → Run
+
+```bash
+python run.py
+```
+
+## 📖 Commands
 
 | Command | Description |
-|---------|-------------|
-| `/admin` | Admin dashboard |
-| `/genkey TYPE` | Generate single license key |
-| `/genkeys TYPE QTY BATCH` | Bulk generate keys (sends .txt file) |
-| `/keyinfo KEY` | Look up key details |
-| `/revokekey KEY` | Revoke key + downgrade user |
-| `/listkeys [STATUS]` | List keys with filters |
-| `/userlookup TELEGRAM_ID` | Look up user details |
-| `/giftkey TELEGRAM_ID TYPE` | Gift Pro to a user |
-| `/broadcast [all\|pro] MSG` | Send message to users |
+|:--------|:------------|
+| `/search` `name` | Movie details with full card |
+| `/recommend` | AI picks → mood · genre · similar · surprise |
+| `/watchlist` | Save-for-later with priorities |
+| `/watched` | Log movies · rate · review |
+| `/where` `name` | Streaming availability |
+| `/compare` `A vs B` | Side-by-side showdown |
+| `/explain` `name` | AI plot · ending · hidden · characters |
+| `/stats` | Your watching statistics |
+| `/alerts` | Release date notifications |
+| `/random` | Surprise pick by genre |
+| `/mood` | Mood-based recommendations |
+| `/redeem` `KEY` | Activate Pro subscription |
+| `/pro` | View plan & usage |
+| `/contact` `msg` | Message admin support |
 
-Key types: `1M` (30d), `2M` (60d), `3M` (90d), `6M` (180d), `1Y` (365d)
+> 💡 **Tip:** Just type any movie name — no command needed.
 
-## Free vs Pro
+<details>
+<summary><b>🛡️ Admin Commands</b></summary>
 
-| Feature | Free | Pro |
-|---------|------|-----|
-| Searches/day | 10 | Unlimited |
-| Recommendations/day | 5 | Unlimited |
-| AI Explanations/day | 3 | Unlimited |
-| Watchlist items | 20 | Unlimited |
-| Daily suggestions | Limited | Full |
-| Advanced stats | ❌ | ✅ |
+| Command | Description |
+|:--------|:------------|
+| `/admin` | Dashboard with stats |
+| `/genkey` `TYPE` | Generate single key |
+| `/genkeys` `TYPE QTY BATCH` | Bulk generate → `.txt` file |
+| `/keyinfo` `KEY` | Key status lookup |
+| `/revokekey` `KEY` | Revoke + downgrade user |
+| `/listkeys` `[STATUS]` | Filter: UNUSED · USED · EXPIRED · REVOKED |
+| `/userlookup` `ID` | User profile lookup |
+| `/giftkey` `ID TYPE` | Gift Pro to user |
+| `/broadcast` `[all\|pro] msg` | Broadcast message |
+| `/aistatus` | AI provider capacity |
+| `/tickets` | Support ticket queue |
 
-## Architecture
+</details>
+
+## 💎 Free vs Pro
+
+```
+Feature              Free          Pro
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Searches/day         ████████░░    Unlimited
+                     10/day
+
+Recommendations/day  █████░░░░░    Unlimited
+                     5/day
+
+AI Explanations/day  ███░░░░░░░    Unlimited
+                     3/day
+
+Watchlist items      ████████░░    Unlimited
+                     20 max
+
+Daily suggestions    Limited       ✅ Full
+Priority support     ❌            ✅
+```
+
+## 📁 Architecture
 
 ```
 cinebot/
-├── bot/
-│   ├── main.py              # App builder, handler/job registration
-│   ├── config.py             # Pydantic settings
-│   ├── handlers/             # 16 command/callback handlers
-│   ├── services/             # External API integrations
-│   ├── models/               # SQLAlchemy models + repositories
-│   ├── middleware/            # Rate limiting, auth, analytics
-│   ├── utils/                # Formatters, keyboards, validators
-│   └── jobs/                 # Scheduled tasks
-├── run.py                    # Entry point
-└── requirements.txt
+├── run.py                     Entry point + health server
+├── scripts/
+│   ├── setup_db.py            Database initialization
+│   ├── health_check.py        Service diagnostics
+│   └── generate_keys.py       CLI key generation
+└── bot/
+    ├── main.py                App builder · handlers · jobs
+    ├── config.py              Pydantic settings
+    ├── handlers/              17 handler modules
+    ├── services/
+    │   ├── ai_service.py      7-provider failover chain
+    │   ├── tmdb_service.py    Movie data + caching
+    │   ├── recommendation_engine.py
+    │   ├── streaming_service.py
+    │   ├── youtube_service.py
+    │   └── key_service.py     License key logic
+    ├── models/                SQLAlchemy ORM + repositories
+    ├── middleware/             Rate limits · auth · analytics
+    ├── utils/                 Formatters · keyboards · validators
+    └── jobs/                  Scheduled tasks
 ```
 
-## Scheduled Jobs
+## ⏰ Scheduled Jobs
 
-| Job | Schedule | Description |
-|-----|----------|-------------|
-| Daily Suggestion | 09:00 UTC daily | Personalized movie push |
-| Release Alerts | Every 6 hours | Notify upcoming releases |
-| Subscription Expiry | 00:30 UTC daily | Warnings + auto-downgrade |
+| Job | Schedule | What it does |
+|:----|:---------|:-------------|
+| Daily Suggestion | `09:00 UTC` | Personalized movie push |
+| Release Alerts | Every `6h` | Notify upcoming releases |
+| Subscription Expiry | `00:30 UTC` | Warnings + auto-downgrade |
 
-## Production Deployment
+## 🌐 Deployment
 
 ```bash
-# Using systemd
-sudo cp cinebot.service /etc/systemd/system/
-sudo systemctl enable cinebot
-sudo systemctl start cinebot
+# Polling (development)
+python run.py
 
-# Using Docker
+# Webhook (production)
+USE_WEBHOOK=true WEBHOOK_URL=https://your.domain python run.py
+```
+
+<details>
+<summary><b>Docker</b></summary>
+
+```bash
 docker-compose up -d
 ```
 
-### Scaling considerations:
-- Connection pooling: 20 base + 30 overflow PostgreSQL connections
-- Redis connection pool: 50 max connections
-- Concurrent update processing enabled
-- 24h movie cache, 6h search cache, 12h streaming cache
-- Rate limiting via Redis with midnight TTL reset
-- Exponential backoff on all external API calls
+</details>
 
-## License
+<details>
+<summary><b>Systemd</b></summary>
 
-MIT
+```bash
+sudo cp cinebot.service /etc/systemd/system/
+sudo systemctl enable --now cinebot
 ```
+
+</details>
+
+---
+
+<div align="center">
+
+**Built with** 🐍 Python · 🐘 PostgreSQL · 🔴 Redis · 🎬 TMDb
+
+</div>
