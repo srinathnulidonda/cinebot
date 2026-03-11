@@ -7,6 +7,7 @@ import threading
 import time
 import asyncio
 import json
+import traceback
 import urllib.request
 from datetime import datetime, timezone
 
@@ -27,29 +28,43 @@ START_TIME: float = time.time()
 
 _lock = threading.Lock()
 _bot_state: dict = {"running": False, "mode": "polling"}
-_loop: asyncio.AbstractEventLoop | None = None
+
+_async_loop: asyncio.AbstractEventLoop | None = None
+_async_thread: threading.Thread | None = None
+
+
+def _ensure_async_loop() -> asyncio.AbstractEventLoop:
+    global _async_loop, _async_thread
+    if _async_loop and _async_loop.is_running():
+        return _async_loop
+
+    def _run_loop(loop: asyncio.AbstractEventLoop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+    _async_loop = asyncio.new_event_loop()
+    _async_thread = threading.Thread(target=_run_loop, args=(_async_loop,), daemon=True, name="AsyncBridge")
+    _async_thread.start()
+    time.sleep(0.1)
+    return _async_loop
+
+
+def _run_async(coro, timeout: float = 20.0):
+    loop = _ensure_async_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    try:
+        return future.result(timeout=timeout)
+    except asyncio.TimeoutError:
+        future.cancel()
+        raise TimeoutError("Async operation timed out")
+    except Exception:
+        raise
 
 
 def set_bot_running(running: bool, mode: str = "polling") -> None:
     with _lock:
         _bot_state["running"] = running
         _bot_state["mode"] = mode
-
-
-def _set_loop(loop: asyncio.AbstractEventLoop) -> None:
-    global _loop
-    _loop = loop
-
-
-def _run_async(coro):
-    if _loop and _loop.is_running():
-        future = asyncio.run_coroutine_threadsafe(coro, _loop)
-        return future.result(timeout=15)
-    new_loop = asyncio.new_event_loop()
-    try:
-        return new_loop.run_until_complete(coro)
-    finally:
-        new_loop.close()
 
 
 def _uptime() -> tuple[str, int]:
@@ -86,11 +101,45 @@ def _api_response(data=None, error=None, status=200):
     }), status
 
 
+def _safe_async(coro, fallback=None):
+    try:
+        return _run_async(coro)
+    except TimeoutError:
+        logger.error(f"Async timeout: {coro}")
+        return fallback
+    except Exception as e:
+        logger.error(f"Async error: {e}\n{traceback.format_exc()}")
+        return fallback
+
+
 app = Flask(__name__)
-CORS(app, origins=[FRONTEND_URL, "http://localhost:3000", "http://localhost:5173"], supports_credentials=True)
+CORS(
+    app,
+    origins=[
+        FRONTEND_URL,
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://cinebrainplayer.vercel.app",
+    ],
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True,
+    max_age=3600,
+)
 
 app.logger.setLevel(logging.ERROR)
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    logger.error(f"Internal server error: {e}")
+    return _api_response(error="Internal server error", status=500)
+
+
+@app.errorhandler(404)
+def handle_404(e):
+    return _api_response(error="Not found", status=404)
 
 
 @app.route("/")
@@ -154,84 +203,96 @@ def embed_tv(tmdb_id: int, season: int, episode: int):
 def api_movie_sources(tmdb_id: int):
     try:
         from bot.services.stream import get_movie_sources
-        data = _run_async(get_movie_sources(tmdb_id))
+        data = _safe_async(get_movie_sources(tmdb_id))
+        if data is None:
+            return _api_response(error="Failed to fetch sources", status=502)
         return _api_response(data)
     except Exception as e:
         logger.error(f"API movie sources error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/sources/tv/<int:tmdb_id>/<int:season>/<int:episode>")
 def api_tv_sources(tmdb_id: int, season: int, episode: int):
     try:
         from bot.services.stream import get_tv_sources
-        data = _run_async(get_tv_sources(tmdb_id, season, episode))
+        data = _safe_async(get_tv_sources(tmdb_id, season, episode))
+        if data is None:
+            return _api_response(error="Failed to fetch sources", status=502)
         return _api_response(data)
     except Exception as e:
         logger.error(f"API TV sources error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/tv/<int:tmdb_id>/seasons")
 def api_tv_seasons(tmdb_id: int):
     try:
         from bot.services.stream import get_tv_seasons
-        data = _run_async(get_tv_seasons(tmdb_id))
-        if not data:
+        data = _safe_async(get_tv_seasons(tmdb_id))
+        if data is None:
             return _api_response(error="TV show not found", status=404)
         return _api_response(data)
     except Exception as e:
         logger.error(f"API TV seasons error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/movie/<int:tmdb_id>/info")
 def api_movie_info(tmdb_id: int):
     try:
         from bot.services.stream import get_movie_info
-        data = _run_async(get_movie_info(tmdb_id))
-        if not data:
+        data = _safe_async(get_movie_info(tmdb_id))
+        if data is None:
             return _api_response(error="Movie not found", status=404)
         return _api_response(data)
     except Exception as e:
         logger.error(f"API movie info error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/tv/<int:tmdb_id>/info")
 def api_tv_info(tmdb_id: int):
     try:
         from bot.services.stream import get_tv_info
-        data = _run_async(get_tv_info(tmdb_id))
-        if not data:
+        data = _safe_async(get_tv_info(tmdb_id))
+        if data is None:
             return _api_response(error="TV show not found", status=404)
         return _api_response(data)
     except Exception as e:
         logger.error(f"API TV info error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/progress", methods=["POST"])
 def api_save_progress():
     try:
-        body = request.get_json()
+        body = request.get_json(silent=True)
         if not body:
             return _api_response(error="No data provided", status=400)
+        required = ["user_id", "media_id", "media_type"]
+        for field in required:
+            if field not in body:
+                return _api_response(error=f"Missing field: {field}", status=400)
         from bot.services.stream import save_progress
-        data = _run_async(save_progress(
-            user_id=body.get("user_id", 0),
-            media_id=body.get("media_id", 0),
-            media_type=body.get("media_type", "movie"),
-            progress=body.get("progress", 0),
-            current_time=body.get("current_time", 0),
-            duration=body.get("duration", 0),
+        data = _safe_async(save_progress(
+            user_id=int(body.get("user_id", 0)),
+            media_id=int(body.get("media_id", 0)),
+            media_type=str(body.get("media_type", "movie")),
+            progress=float(body.get("progress", 0)),
+            current_time=float(body.get("current_time", 0)),
+            duration=float(body.get("duration", 0)),
             season=body.get("season"),
             episode=body.get("episode"),
         ))
+        if data is None:
+            return _api_response(error="Failed to save progress", status=502)
         return _api_response(data)
+    except (ValueError, TypeError) as e:
+        return _api_response(error=f"Invalid data: {e}", status=400)
     except Exception as e:
         logger.error(f"API save progress error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 @app.route("/api/progress/<int:user_id>/<int:media_id>")
@@ -241,16 +302,16 @@ def api_get_progress(user_id: int, media_id: int):
         season = request.args.get("season", type=int)
         episode = request.args.get("episode", type=int)
         from bot.services.stream import get_progress
-        data = _run_async(get_progress(user_id, media_id, media_type, season, episode))
-        if not data:
-            return _api_response(data={})
-        return _api_response(data)
+        data = _safe_async(get_progress(user_id, media_id, media_type, season, episode))
+        return _api_response(data=data or {})
     except Exception as e:
         logger.error(f"API get progress error: {e}")
-        return _api_response(error=str(e), status=500)
+        return _api_response(error="Service unavailable", status=503)
 
 
 def start_server() -> threading.Thread:
+    _ensure_async_loop()
+
     def _serve() -> None:
         app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
