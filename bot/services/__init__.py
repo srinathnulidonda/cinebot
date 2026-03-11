@@ -6,6 +6,7 @@ from bot.services import ai_service
 from bot.services import key_service
 from bot.services import recommendation_engine
 from bot.services import backend_health
+from bot.services import stream
 
 __all__ = [
     "tmdb_service",
@@ -15,4 +16,5 @@ __all__ = [
     "key_service",
     "recommendation_engine",
     "backend_health",
+    "stream",
 ]

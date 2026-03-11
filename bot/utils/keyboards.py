@@ -10,18 +10,40 @@ def _contact_row() -> list[list[Btn]]:
 def movie_detail_kb(movie_id: int, in_watchlist: bool = False) -> Mk:
     save_text = "✅ Saved" if in_watchlist else "📥 Save"
     save_data = f"wl_remove:{movie_id}" if in_watchlist else f"wl_add:{movie_id}"
+    from bot.services.stream import get_movie_player_url
     return Mk([
         [
+            Btn("▶️ Watch", url=get_movie_player_url(movie_id)),
             Btn("🎥 Trailer", callback_data=f"trailer:{movie_id}"),
             Btn(save_text, callback_data=save_data),
-            Btn("✅ Watched", callback_data=f"watched_add:{movie_id}"),
         ],
         [
+            Btn("✅ Watched", callback_data=f"watched_add:{movie_id}"),
             Btn("📺 Stream", callback_data=f"where:{movie_id}"),
             Btn("🔍 Similar", callback_data=f"similar:{movie_id}"),
-            Btn("🧠 Explain", callback_data=f"explain_menu:{movie_id}"),
         ],
-        [Btn("🔔 Alert", callback_data=f"alert_add:{movie_id}")],
+        [
+            Btn("🧠 Explain", callback_data=f"explain_menu:{movie_id}"),
+            Btn("🔔 Alert", callback_data=f"alert_add:{movie_id}"),
+        ],
+    ])
+
+
+def tv_detail_kb(tv_id: int, in_watchlist: bool = False) -> Mk:
+    save_text = "✅ Saved" if in_watchlist else "📥 Save"
+    save_data = f"wl_remove_tv:{tv_id}" if in_watchlist else f"wl_add_tv:{tv_id}"
+    from bot.services.stream import get_tv_player_url
+    return Mk([
+        [
+            Btn("▶️ Watch S1E1", url=get_tv_player_url(tv_id, 1, 1)),
+            Btn("🎥 Trailer", callback_data=f"tv_trailer:{tv_id}"),
+            Btn(save_text, callback_data=save_data),
+        ],
+        [
+            Btn("📋 Episodes", callback_data=f"tv_eps:{tv_id}:1"),
+            Btn("📺 Stream", callback_data=f"where_tv:{tv_id}"),
+            Btn("🔍 Similar", callback_data=f"similar_tv:{tv_id}"),
+        ],
     ])
 
 
@@ -34,6 +56,38 @@ def search_results_kb(movies: list[dict]) -> Mk:
         rating = m.get("vote_average", 0)
         label = f"🎬 {title} ({year}) ⭐{rating:.0f}" if year else f"🎬 {title}"
         buttons.append([Btn(label, callback_data=f"movie:{mid}")])
+    return Mk(buttons)
+
+
+def tv_search_results_kb(shows: list[dict]) -> Mk:
+    buttons = []
+    for s in shows[:8]:
+        sid = s["id"]
+        name = s.get("name", "?")[:28]
+        year = s.get("first_air_date", "")[:4]
+        rating = s.get("vote_average", 0)
+        label = f"📺 {name} ({year}) ⭐{rating:.0f}" if year else f"📺 {name}"
+        buttons.append([Btn(label, callback_data=f"tv_show:{sid}")])
+    return Mk(buttons)
+
+
+def multi_search_results_kb(results: list[dict]) -> Mk:
+    buttons = []
+    for r in results[:8]:
+        media_type = r.get("media_type", "movie")
+        rid = r["id"]
+        if media_type == "tv":
+            name = r.get("name", "?")[:26]
+            year = r.get("first_air_date", "")[:4]
+            rating = r.get("vote_average", 0)
+            label = f"📺 {name} ({year}) ⭐{rating:.0f}" if year else f"📺 {name}"
+            buttons.append([Btn(label, callback_data=f"tv_show:{rid}")])
+        elif media_type == "movie":
+            title = r.get("title", "?")[:26]
+            year = r.get("release_date", "")[:4]
+            rating = r.get("vote_average", 0)
+            label = f"🎬 {title} ({year}) ⭐{rating:.0f}" if year else f"🎬 {title}"
+            buttons.append([Btn(label, callback_data=f"movie:{rid}")])
     return Mk(buttons)
 
 

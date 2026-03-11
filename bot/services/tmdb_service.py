@@ -67,6 +67,19 @@ async def search_movies(query: str, page: int = 1) -> dict:
     return data
 
 
+async def search_tv(query: str, page: int = 1) -> dict:
+    cache_key = f"tmdb:search_tv:{query.lower().strip()}:{page}"
+    data = await _request("/search/tv", {"query": query, "page": page}, cache_key, _s.CACHE_SEARCH_TTL)
+    if not data.get("results"):
+        raise MovieNotFoundError(query)
+    return data
+
+
+async def multi_search(query: str, page: int = 1) -> dict:
+    cache_key = f"tmdb:multi:{query.lower().strip()}:{page}"
+    return await _request("/search/multi", {"query": query, "page": page}, cache_key, _s.CACHE_SEARCH_TTL)
+
+
 async def get_movie(movie_id: int) -> dict:
     cache_key = f"tmdb:movie:{movie_id}"
     return await _request(
@@ -76,9 +89,31 @@ async def get_movie(movie_id: int) -> dict:
     )
 
 
+async def get_tv_show(tv_id: int) -> dict:
+    cache_key = f"tmdb:tv:{tv_id}"
+    return await _request(
+        f"/tv/{tv_id}",
+        {"append_to_response": "credits,external_ids,keywords,content_ratings"},
+        cache_key, _s.CACHE_MOVIE_TTL,
+    )
+
+
+async def get_tv_season(tv_id: int, season_number: int) -> dict:
+    cache_key = f"tmdb:tv_season:{tv_id}:{season_number}"
+    return await _request(
+        f"/tv/{tv_id}/season/{season_number}",
+        cache_key=cache_key, ttl=_s.CACHE_MOVIE_TTL,
+    )
+
+
 async def get_movie_credits(movie_id: int) -> dict:
     cache_key = f"tmdb:credits:{movie_id}"
     return await _request(f"/movie/{movie_id}/credits", cache_key=cache_key, ttl=_s.CACHE_MOVIE_TTL)
+
+
+async def get_tv_credits(tv_id: int) -> dict:
+    cache_key = f"tmdb:tv_credits:{tv_id}"
+    return await _request(f"/tv/{tv_id}/credits", cache_key=cache_key, ttl=_s.CACHE_MOVIE_TTL)
 
 
 async def get_similar(movie_id: int, page: int = 1) -> dict:
@@ -86,9 +121,19 @@ async def get_similar(movie_id: int, page: int = 1) -> dict:
     return await _request(f"/movie/{movie_id}/similar", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
 
 
+async def get_tv_similar(tv_id: int, page: int = 1) -> dict:
+    cache_key = f"tmdb:tv_similar:{tv_id}:{page}"
+    return await _request(f"/tv/{tv_id}/similar", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
+
+
 async def get_recommendations(movie_id: int, page: int = 1) -> dict:
     cache_key = f"tmdb:recs:{movie_id}:{page}"
     return await _request(f"/movie/{movie_id}/recommendations", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
+
+
+async def get_tv_recommendations(tv_id: int, page: int = 1) -> dict:
+    cache_key = f"tmdb:tv_recs:{tv_id}:{page}"
+    return await _request(f"/tv/{tv_id}/recommendations", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
 
 
 async def discover_movies(
@@ -110,9 +155,30 @@ async def discover_movies(
     return await _request("/discover/movie", params, cache_key, _s.CACHE_SEARCH_TTL)
 
 
+async def discover_tv(
+    genres: list[int] | None = None,
+    sort_by: str = "popularity.desc",
+    min_rating: float = 0,
+    page: int = 1,
+) -> dict:
+    params: dict[str, Any] = {"sort_by": sort_by, "page": page, "vote_count.gte": 30}
+    if genres:
+        params["with_genres"] = ",".join(str(g) for g in genres)
+    if min_rating:
+        params["vote_average.gte"] = min_rating
+    genre_str = "_".join(str(g) for g in (genres or []))
+    cache_key = f"tmdb:discover_tv:{genre_str}:{sort_by}:{min_rating}:{page}"
+    return await _request("/discover/tv", params, cache_key, _s.CACHE_SEARCH_TTL)
+
+
 async def get_trending(time_window: str = "week", page: int = 1) -> dict:
     cache_key = f"tmdb:trending:{time_window}:{page}"
     return await _request(f"/trending/movie/{time_window}", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
+
+
+async def get_trending_tv(time_window: str = "week", page: int = 1) -> dict:
+    cache_key = f"tmdb:trending_tv:{time_window}:{page}"
+    return await _request(f"/trending/tv/{time_window}", {"page": page}, cache_key, _s.CACHE_SEARCH_TTL)
 
 
 async def get_upcoming(page: int = 1) -> dict:
@@ -125,14 +191,19 @@ async def get_watch_providers(movie_id: int) -> dict:
     return await _request(f"/movie/{movie_id}/watch/providers", cache_key=cache_key, ttl=_s.CACHE_STREAMING_TTL)
 
 
+async def get_tv_watch_providers(tv_id: int) -> dict:
+    cache_key = f"tmdb:tv_providers:{tv_id}"
+    return await _request(f"/tv/{tv_id}/watch/providers", cache_key=cache_key, ttl=_s.CACHE_STREAMING_TTL)
+
+
 async def get_movie_videos(movie_id: int) -> dict:
     cache_key = f"tmdb:videos:{movie_id}"
     return await _request(f"/movie/{movie_id}/videos", cache_key=cache_key, ttl=_s.CACHE_MOVIE_TTL)
 
 
-async def multi_search(query: str) -> dict:
-    cache_key = f"tmdb:multi:{query.lower().strip()}"
-    return await _request("/search/multi", {"query": query}, cache_key, _s.CACHE_SEARCH_TTL)
+async def get_tv_videos(tv_id: int) -> dict:
+    cache_key = f"tmdb:tv_videos:{tv_id}"
+    return await _request(f"/tv/{tv_id}/videos", cache_key=cache_key, ttl=_s.CACHE_MOVIE_TTL)
 
 
 async def get_poster_url(path: str | None, size: str = "w500") -> str | None:

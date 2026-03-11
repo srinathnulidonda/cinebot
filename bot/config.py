@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     STREAMING_API_KEY: str
     STREAMING_API_HOST: str = "streaming-availability.p.rapidapi.com"
 
+    FRONTEND_URL: str = "https://cinebrainplayer.vercel.app"
+    VIDKING_BASE_URL: str = "https://www.vidking.net"
+
     ADMIN_IDS: list[int] = []
 
     FREE_DAILY_SEARCHES: int = 10

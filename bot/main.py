@@ -13,6 +13,7 @@ from bot.handlers import (
     start, search, recommend, watchlist, watched,
     where, compare, explain, stats, alerts,
     random as random_handler, mood, inline, redeem, admin, callbacks, contact, support,
+    watch,
 )
 from bot.jobs.daily_suggestion import daily_suggestion_job
 from bot.jobs.release_alerts import release_alerts_job
@@ -29,7 +30,8 @@ _s = get_settings()
 BOT_COMMANDS = [
     BotCommand("start", "Start the bot"),
     BotCommand("help", "Show help message"),
-    BotCommand("search", "Search for a movie"),
+    BotCommand("search", "Search movies & TV shows"),
+    BotCommand("watch", "Watch movies & TV shows"),
     BotCommand("recommend", "Get AI recommendations"),
     BotCommand("watchlist", "Manage your watchlist"),
     BotCommand("watched", "Log watched movies"),
@@ -80,23 +82,6 @@ async def error_handler(update: object, context) -> None:
                 except Exception:
                     pass
         return
-
-    logger.error(f"Unhandled exception: {error}", exc_info=context.error)
-    if isinstance(update, Update):
-        try:
-            if update.callback_query:
-                await update.callback_query.answer("⚠️ Something went wrong.", show_alert=True)
-            elif update.effective_message:
-                from bot.utils.keyboards import rate_limit_kb
-                await update.effective_message.reply_text(
-                    "⚠️ <b>Unexpected Error</b>\n\n"
-                    "Something went wrong. Try again shortly.\n\n"
-                    "📞 /chat if this persists",
-                    parse_mode="HTML",
-                    reply_markup=rate_limit_kb(),
-                )
-        except Exception:
-            pass
 
     logger.error(f"Unhandled exception: {error}", exc_info=context.error)
     if isinstance(update, Update):
@@ -190,14 +175,17 @@ async def text_message_handler(update: Update, context) -> None:
             return
         await ensure_user(update, context)
         from bot.services import tmdb_service
-        from bot.utils.keyboards import search_results_kb
+        from bot.utils.keyboards import multi_search_results_kb
         try:
-            data = await tmdb_service.search_movies(text)
-            results = data.get("results", [])[:6]
+            data = await tmdb_service.multi_search(text)
+            results = [
+                r for r in data.get("results", [])
+                if r.get("media_type") in ("movie", "tv")
+            ][:6]
             if results:
                 await update.message.reply_text(
                     f"🔍 <b>Quick results:</b>\n{LINE}",
-                    reply_markup=search_results_kb(results),
+                    reply_markup=multi_search_results_kb(results),
                     parse_mode="HTML",
                 )
         except Exception:
@@ -285,11 +273,12 @@ async def post_init(application: Application) -> None:
 async def post_shutdown(application: Application) -> None:
     from bot.jobs.status import set_bot_running
     set_bot_running(False)
-    from bot.services import tmdb_service, youtube_service, streaming_service, ai_service
+    from bot.services import tmdb_service, youtube_service, streaming_service, ai_service, stream
     await tmdb_service.close()
     await youtube_service.close()
     await streaming_service.close()
     await ai_service.close()
+    await stream.close()
     await close_db()
     logger.info("Bot shutdown complete")
 
@@ -298,7 +287,7 @@ def _register_handlers(app: Application) -> None:
     handler_modules = [
         start, search, recommend, watchlist, watched,
         where, compare, explain, stats, alerts,
-        random_handler, mood, inline, redeem, admin, contact, support, callbacks,
+        random_handler, mood, inline, redeem, admin, contact, support, watch, callbacks,
     ]
     for module in handler_modules:
         for handler in module.get_handlers():

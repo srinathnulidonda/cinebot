@@ -10,7 +10,10 @@ from bot.models.watchlist import WatchlistRepo
 from bot.models.database import Priority
 from bot.services import tmdb_service
 from bot.utils.formatters import format_watchlist_item
-from bot.utils.keyboards import pagination_kb, priority_kb, search_results_kb, rate_limit_kb
+from bot.utils.keyboards import (
+    pagination_kb, priority_kb, search_results_kb, rate_limit_kb,
+    movie_detail_kb, tv_detail_kb,
+)
 from bot.utils.constants import E_LIST, E_CHECK, FREE_LIMITS, MSG_WATCHLIST_EMPTY, LINE
 from bot.utils.pagination import AsyncPaginator
 from bot import CineBotError
@@ -52,7 +55,7 @@ async def _show_watchlist(update: Update, context: ContextTypes.DEFAULT_TYPE, pa
 
     pag = AsyncPaginator(items, total, page, _s.ITEMS_PER_PAGE)
     lines = [
-        f"{E_LIST} <b>WATCHLIST</b> ({total} movies)",
+        f"{E_LIST} <b>WATCHLIST</b> ({total} items)",
         LINE,
         "",
     ]
@@ -129,8 +132,45 @@ async def wl_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 movie.get("poster_path"),
             )
         await query.answer("Added! 🍿")
-        from bot.utils.keyboards import movie_detail_kb
         kb = movie_detail_kb(movie_id, in_watchlist=True)
+        try:
+            await query.edit_message_reply_markup(reply_markup=kb)
+        except Exception:
+            pass
+    except CineBotError as e:
+        await query.answer(e.user_message, show_alert=True)
+
+
+async def wl_add_tv_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    tv_id = int(query.data.split(":")[1])
+    await ensure_user(update, context)
+    user_db_id = context.user_data.get("db_user_id", 0)
+    is_pro = context.user_data.get("is_pro", False)
+
+    async with get_session() as session:
+        if await WatchlistRepo.exists(session, user_db_id, tv_id):
+            await query.answer("Already saved! 📋", show_alert=True)
+            return
+        count = await WatchlistRepo.count(session, user_db_id)
+        if not is_pro and count >= FREE_LIMITS["watchlist"]:
+            await query.answer(
+                f"Watchlist full ({FREE_LIMITS['watchlist']}). Upgrade to 👑 Pro!",
+                show_alert=True,
+            )
+            return
+
+    try:
+        show = await tmdb_service.get_tv_show(tv_id)
+        async with get_session() as session:
+            await WatchlistRepo.add(
+                session, user_db_id, tv_id,
+                show.get("name", "Unknown"),
+                show.get("poster_path"),
+            )
+        await query.answer("Added! 🍿")
+        kb = tv_detail_kb(tv_id, in_watchlist=True)
         try:
             await query.edit_message_reply_markup(reply_markup=kb)
         except Exception:
@@ -149,8 +189,24 @@ async def wl_remove_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     async with get_session() as session:
         await WatchlistRepo.remove(session, user_db_id, movie_id)
     await query.answer("Removed! 🗑️")
-    from bot.utils.keyboards import movie_detail_kb
     kb = movie_detail_kb(movie_id, in_watchlist=False)
+    try:
+        await query.edit_message_reply_markup(reply_markup=kb)
+    except Exception:
+        pass
+
+
+async def wl_remove_tv_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    tv_id = int(query.data.split(":")[1])
+    await ensure_user(update, context)
+    user_db_id = context.user_data.get("db_user_id", 0)
+
+    async with get_session() as session:
+        await WatchlistRepo.remove(session, user_db_id, tv_id)
+    await query.answer("Removed! 🗑️")
+    kb = tv_detail_kb(tv_id, in_watchlist=False)
     try:
         await query.edit_message_reply_markup(reply_markup=kb)
     except Exception:
@@ -182,7 +238,9 @@ def get_handlers() -> list:
     return [
         CommandHandler("watchlist", watchlist_command),
         CallbackQueryHandler(wl_add_callback, pattern=r"^wl_add:\d+$"),
+        CallbackQueryHandler(wl_add_tv_callback, pattern=r"^wl_add_tv:\d+$"),
         CallbackQueryHandler(wl_remove_callback, pattern=r"^wl_remove:\d+$"),
+        CallbackQueryHandler(wl_remove_tv_callback, pattern=r"^wl_remove_tv:\d+$"),
         CallbackQueryHandler(wl_page_callback, pattern=r"^wl:page:\d+$"),
         CallbackQueryHandler(priority_callback, pattern=r"^pri:\d+:(HIGH|MED|LOW)$"),
     ]

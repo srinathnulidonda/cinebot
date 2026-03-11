@@ -37,6 +37,34 @@ async def trailer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await query.answer("Failed to load trailer 🙈", show_alert=True)
 
 
+async def tv_trailer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("Finding trailer... 🎥")
+    tv_id = int(query.data.split(":")[1])
+    try:
+        videos = await tmdb_service.get_tv_videos(tv_id)
+        trailer = await youtube_service.find_trailer_from_tmdb(videos)
+        if not trailer:
+            show = await tmdb_service.get_tv_show(tv_id)
+            name = show.get("name", "Unknown")
+            year = show.get("first_air_date", "")[:4]
+            trailer = await youtube_service.find_trailer(name, year)
+        if trailer:
+            await query.message.reply_text(
+                f"🎥 <b>TRAILER</b>\n"
+                f"{LINE}\n\n"
+                f"{trailer['title']}\n"
+                f"{trailer['url']}",
+                parse_mode="HTML",
+                disable_web_page_preview=False,
+            )
+        else:
+            await query.answer("No trailer found 🙈", show_alert=True)
+    except Exception as e:
+        logger.error(f"TV trailer fetch failed: {e}")
+        await query.answer("Failed to load trailer 🙈", show_alert=True)
+
+
 async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
 
@@ -76,6 +104,7 @@ async def unknown_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 def get_handlers() -> list:
     return [
         CallbackQueryHandler(trailer_callback, pattern=r"^trailer:\d+$"),
+        CallbackQueryHandler(tv_trailer_callback, pattern=r"^tv_trailer:\d+$"),
         CallbackQueryHandler(noop_callback, pattern=r"^noop$"),
         CallbackQueryHandler(cancel_callback, pattern=r"^cancel$"),
         CallbackQueryHandler(back_main_callback, pattern=r"^back_main$"),

@@ -5,7 +5,7 @@ from bot.utils.constants import (
     E_CALENDAR, E_CROWN, E_SPARKLE, E_FIRE, E_FILM, E_TV,
     E_LIST, E_PERSON, E_KEY, E_BRAIN, E_WARN, E_PHONE, E_WAIT,
     E_ROBOT, E_SEARCH, E_INFO, E_PARTY, E_CLAP, E_POPCORN, E_SHIELD,
-    E_SERVER,
+    E_SERVER, E_PLAY,
     LINE, LINE_LIGHT, BADGE_PRO, BADGE_HOT, BADGE_NEW, BADGE_TOP,
     TMDB_GENRES, MILESTONES, FREE_LIMITS,
 )
@@ -49,7 +49,7 @@ def movie_badges(movie: dict) -> str:
     badges = []
     rating = movie.get("vote_average", 0)
     popularity = movie.get("popularity", 0)
-    release = movie.get("release_date", "")
+    release = movie.get("release_date", "") or movie.get("first_air_date", "")
     if rating >= 8.0:
         badges.append(BADGE_TOP)
     if popularity >= 100:
@@ -104,11 +104,83 @@ def format_movie_card(movie: dict) -> str:
     return text
 
 
+def format_tv_card(show: dict) -> str:
+    name = sanitize_html(show.get("name", "Unknown"))
+    year = show.get("first_air_date", "")[:4] or "?"
+    rating = show.get("vote_average", 0)
+    votes = show.get("vote_count", 0)
+    overview = sanitize_html(show.get("overview", "No overview available."))
+    if len(overview) > 350:
+        overview = overview[:347] + "..."
+
+    tags = genre_tags(show.get("genre_ids"), show.get("genres"))
+    badges = movie_badges(show)
+    stars = star_rating(rating)
+
+    seasons = show.get("number_of_seasons", 0)
+    episodes = show.get("number_of_episodes", 0)
+    status = show.get("status", "")
+    lang = (show.get("original_language") or "").upper()
+
+    status_emoji = {
+        "Returning Series": "🟢",
+        "Ended": "🔴",
+        "Canceled": "⚫",
+        "In Production": "🟡",
+    }.get(status, "⚪")
+
+    meta_parts = []
+    if seasons:
+        meta_parts.append(f"📺 <b>{seasons}</b> Season{'s' if seasons != 1 else ''}")
+    if episodes:
+        meta_parts.append(f"🎞 <b>{episodes}</b> Ep{'s' if episodes != 1 else ''}")
+    if status:
+        meta_parts.append(f"{status_emoji} {status}")
+    if lang:
+        meta_parts.append(f"{E_GLOBE} {lang}")
+    meta_line = " · ".join(meta_parts)
+
+    badge_str = f"  {badges}" if badges else ""
+
+    text = f"{E_TV} <b>{name}</b> ({year}){badge_str}\n"
+    text += f"{LINE}\n"
+    text += f"{E_STAR} <b>{rating:.1f}</b>/10 {stars} · 🗳 {format_votes(votes)}\n"
+    if tags:
+        text += f"🎭 {tags}\n"
+    if meta_line:
+        text += f"{meta_line}\n"
+
+    creators = show.get("created_by", [])
+    if creators:
+        names = ", ".join(sanitize_html(c["name"]) for c in creators[:3])
+        text += f"🎥 <b>Creator{'s' if len(creators) > 1 else ''}:</b> {names}\n"
+
+    text += f"\n{section('Synopsis')}\n"
+    text += overview
+    return text
+
+
+def format_tv_credits(credits: dict) -> str:
+    cast = credits.get("cast", [])[:5]
+    lines = [section("Cast")]
+    if cast:
+        names = ", ".join(sanitize_html(a["name"]) for a in cast)
+        lines.append(f"🌟 <b>ᴄᴀsᴛ:</b> {names}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
 def format_movie_short(movie: dict) -> str:
     title = sanitize_html(movie.get("title", "Unknown"))
     year = movie.get("release_date", "")[:4] or "?"
     rating = movie.get("vote_average", 0)
     return f"{E_MOVIE} <b>{title}</b> ({year}) · {E_STAR} {rating:.1f}"
+
+
+def format_tv_short(show: dict) -> str:
+    name = sanitize_html(show.get("name", "Unknown"))
+    year = show.get("first_air_date", "")[:4] or "?"
+    rating = show.get("vote_average", 0)
+    return f"{E_TV} <b>{name}</b> ({year}) · {E_STAR} {rating:.1f}"
 
 
 def format_movie_credits(credits: dict) -> str:
@@ -130,11 +202,11 @@ def format_comparison(a: dict, b: dict) -> str:
 
     sa, sb = score(a), score(b)
     winner = a if sa >= sb else b
-    wt = sanitize_html(winner.get("title", ""))
+    wt = sanitize_html(winner.get("title", winner.get("name", "")))
 
     def side(m, color):
-        t = sanitize_html(m.get("title", "Unknown"))
-        y = m.get("release_date", "")[:4] or "?"
+        t = sanitize_html(m.get("title", m.get("name", "Unknown")))
+        y = (m.get("release_date", "") or m.get("first_air_date", ""))[:4] or "?"
         r = m.get("vote_average", 0)
         v = m.get("vote_count", 0)
         rt = m.get("runtime", "?")
@@ -146,7 +218,7 @@ def format_comparison(a: dict, b: dict) -> str:
         )
 
     return (
-        f"{E_TROPHY} <b>MOVIE SHOWDOWN</b>\n"
+        f"{E_TROPHY} <b>SHOWDOWN</b>\n"
         f"{LINE}\n\n"
         f"{side(a, '🔵')}\n\n"
         f"          ⚔️  VS  ⚔️\n\n"
@@ -234,13 +306,14 @@ def format_recommendation_list(movies: list[dict], title: str = "Recommendations
         LINE,
     ]
     for i, m in enumerate(movies, 1):
-        t = sanitize_html(m.get("title", "Unknown"))
-        y = m.get("release_date", "")[:4] or "?"
+        t = sanitize_html(m.get("title", m.get("name", "Unknown")))
+        y = (m.get("release_date", "") or m.get("first_air_date", ""))[:4] or "?"
         r = m.get("vote_average", 0)
         conf = m.get("confidence")
         reason = m.get("ai_reason", "")
         conf_str = f" · {conf}% match" if conf else ""
-        lines.append(f"\n{i}. {E_MOVIE} <b>{t}</b> ({y})")
+        media_icon = E_TV if m.get("media_type") == "tv" or m.get("name") else E_MOVIE
+        lines.append(f"\n{i}. {media_icon} <b>{t}</b> ({y})")
         lines.append(f"   {E_STAR} {r:.1f}{conf_str}")
         if reason:
             lines.append(f"   💡 <i>{sanitize_html(reason[:80])}</i>")
