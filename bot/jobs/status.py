@@ -30,36 +30,18 @@ START_TIME: float = time.time()
 _lock = threading.Lock()
 _bot_state: dict = {"running": False, "mode": "polling"}
 
-_async_loop: asyncio.AbstractEventLoop | None = None
-_async_thread: threading.Thread | None = None
-
-
-def _ensure_async_loop() -> asyncio.AbstractEventLoop:
-    global _async_loop, _async_thread
-    if _async_loop and _async_loop.is_running():
-        return _async_loop
-
-    def _run_loop(loop: asyncio.AbstractEventLoop):
-        asyncio.set_event_loop(loop)
-        loop.run_forever()
-
-    _async_loop = asyncio.new_event_loop()
-    _async_thread = threading.Thread(target=_run_loop, args=(_async_loop,), daemon=True, name="AsyncBridge")
-    _async_thread.start()
-    time.sleep(0.1)
-    return _async_loop
-
 
 def _run_async(coro, timeout: float = 20.0):
-    loop = _ensure_async_loop()
+    from bot.models.engine import get_bot_loop
+    loop = get_bot_loop()
+    if loop is None or loop.is_closed():
+        raise RuntimeError("Bot event loop not available")
     future = asyncio.run_coroutine_threadsafe(coro, loop)
     try:
         return future.result(timeout=timeout)
     except asyncio.TimeoutError:
         future.cancel()
         raise TimeoutError("Async operation timed out")
-    except Exception:
-        raise
 
 
 def set_bot_running(running: bool, mode: str = "polling") -> None:
@@ -105,11 +87,11 @@ def _api_response(data=None, error=None, status=200):
 def _safe_async(coro, fallback=None):
     try:
         return _run_async(coro)
-    except TimeoutError:
-        logger.error(f"Async timeout: {coro}")
+    except (RuntimeError, TimeoutError) as e:
+        logger.warning("Async bridge: %s", e)
         return fallback
     except Exception as e:
-        logger.error(f"Async error: {e}\n{traceback.format_exc()}")
+        logger.error("Async error: %s\n%s", e, traceback.format_exc())
         return fallback
 
 
@@ -329,8 +311,6 @@ def api_get_progress(user_id: int, media_id: int):
 
 
 def start_server() -> threading.Thread:
-    _ensure_async_loop()
-
     def _serve() -> None:
         app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 

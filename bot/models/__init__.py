@@ -4,7 +4,7 @@ from bot.models.database import (
     WatchedMovie, UserPreference, ReleaseAlert,
     SubscriptionTier, KeyStatus, Priority,
 )
-from bot.models.engine import get_session, init_db, close_db, redis_client, AsyncSessionFactory
+from bot.models.engine import get_session, init_db, close_db, redis_client, AsyncSessionFactory, get_bot_loop
 from bot.models.user import UserRepo
 from bot.models.license_key import LicenseKeyRepo
 from bot.models.watchlist import WatchlistRepo
@@ -16,6 +16,6 @@ __all__ = [
     "Base", "User", "LicenseKey", "KeyGenerationLog", "Watchlist",
     "WatchedMovie", "UserPreference", "ReleaseAlert",
     "SubscriptionTier", "KeyStatus", "Priority",
-    "get_session", "init_db", "close_db", "redis_client", "AsyncSessionFactory",
+    "get_session", "init_db", "close_db", "redis_client", "AsyncSessionFactory", "get_bot_loop",
     "UserRepo", "LicenseKeyRepo", "WatchlistRepo", "WatchedRepo", "PreferenceRepo", "AlertRepo",
 ]

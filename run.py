@@ -75,8 +75,8 @@ def main():
 
     force_kill_old_session()
 
-    logger.info("⏳ Waiting 30s for old instance to fully die...")
-    time.sleep(30)
+    logger.info("⏳ Waiting 5s for old instance cooldown...")
+    time.sleep(5)
 
     force_kill_old_session()
     time.sleep(2)
