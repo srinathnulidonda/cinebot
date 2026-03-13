@@ -4,16 +4,26 @@ import json
 import httpx
 from datetime import datetime, timezone
 from bot.config import get_settings
-from bot.models.engine import redis_client, get_session
+from bot.models.engine import redis_client
 
 logger = logging.getLogger(__name__)
 _s = get_settings()
 
-VIDKING_BASE = "https://www.vidking.net"
-FRONTEND_URL = "https://cinebrainplayer.vercel.app"
+VIDEASY_BASE = _s.VIDEASY_BASE_URL
+VIDKING_BASE = _s.VIDKING_BASE_URL
+FRONTEND_URL = _s.FRONTEND_URL
 
-EMBED_PARAMS_MOVIE = "?color=e50914&autoPlay=true"
-EMBED_PARAMS_TV = "?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true"
+VIDEASY_PARAMS_MOVIE = "?color=e50914&overlay=true"
+VIDEASY_PARAMS_TV = (
+    "?color=e50914&nextEpisode=true"
+    "&autoplayNextEpisode=true&episodeSelector=true&overlay=true"
+)
+
+VIDKING_PARAMS_MOVIE = "?color=e50914&autoPlay=true"
+VIDKING_PARAMS_TV = (
+    "?color=e50914&autoPlay=true"
+    "&nextEpisode=true&episodeSelector=true"
+)
 
 _client: httpx.AsyncClient | None = None
 
@@ -28,12 +38,28 @@ def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+def get_videasy_movie_embed_url(tmdb_id: int) -> str:
+    return f"{VIDEASY_BASE}/movie/{tmdb_id}{VIDEASY_PARAMS_MOVIE}"
+
+
+def get_videasy_tv_embed_url(tmdb_id: int, season: int, episode: int) -> str:
+    return f"{VIDEASY_BASE}/tv/{tmdb_id}/{season}/{episode}{VIDEASY_PARAMS_TV}"
+
+
+def get_vidking_movie_embed_url(tmdb_id: int) -> str:
+    return f"{VIDKING_BASE}/embed/movie/{tmdb_id}{VIDKING_PARAMS_MOVIE}"
+
+
+def get_vidking_tv_embed_url(tmdb_id: int, season: int, episode: int) -> str:
+    return f"{VIDKING_BASE}/embed/tv/{tmdb_id}/{season}/{episode}{VIDKING_PARAMS_TV}"
+
+
 def get_movie_embed_url(tmdb_id: int) -> str:
-    return f"{VIDKING_BASE}/embed/movie/{tmdb_id}{EMBED_PARAMS_MOVIE}"
+    return get_videasy_movie_embed_url(tmdb_id)
 
 
 def get_tv_embed_url(tmdb_id: int, season: int, episode: int) -> str:
-    return f"{VIDKING_BASE}/embed/tv/{tmdb_id}/{season}/{episode}{EMBED_PARAMS_TV}"
+    return get_videasy_tv_embed_url(tmdb_id, season, episode)
 
 
 def get_movie_player_url(tmdb_id: int) -> str:
@@ -45,7 +71,7 @@ def get_tv_player_url(tmdb_id: int, season: int = 1, episode: int = 1) -> str:
 
 
 async def get_movie_sources(tmdb_id: int) -> dict:
-    cache_key = f"stream:sources:movie:{tmdb_id}"
+    cache_key = f"stream:sources:movie:{tmdb_id}:v2"
     cached = await redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
@@ -53,13 +79,22 @@ async def get_movie_sources(tmdb_id: int) -> dict:
     result = {
         "tmdb_id": tmdb_id,
         "type": "movie",
+        "default_server": "videasy",
         "sources": [
             {
-                "name": "VidKing",
+                "server": "videasy",
+                "name": "Server 1",
                 "quality": "auto",
-                "embed_url": get_movie_embed_url(tmdb_id),
+                "embed_url": get_videasy_movie_embed_url(tmdb_id),
                 "player_url": get_movie_player_url(tmdb_id),
-            }
+            },
+            {
+                "server": "vidking",
+                "name": "Server 2",
+                "quality": "auto",
+                "embed_url": get_vidking_movie_embed_url(tmdb_id),
+                "player_url": get_movie_player_url(tmdb_id),
+            },
         ],
     }
     await redis_client.setex(cache_key, 3600, json.dumps(result))
@@ -67,7 +102,7 @@ async def get_movie_sources(tmdb_id: int) -> dict:
 
 
 async def get_tv_sources(tmdb_id: int, season: int, episode: int) -> dict:
-    cache_key = f"stream:sources:tv:{tmdb_id}:{season}:{episode}"
+    cache_key = f"stream:sources:tv:{tmdb_id}:{season}:{episode}:v2"
     cached = await redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
@@ -77,18 +112,26 @@ async def get_tv_sources(tmdb_id: int, season: int, episode: int) -> dict:
         "type": "tv",
         "season": season,
         "episode": episode,
+        "default_server": "videasy",
         "sources": [
             {
-                "name": "VidKing",
+                "server": "videasy",
+                "name": "Server 1",
                 "quality": "auto",
-                "embed_url": get_tv_embed_url(tmdb_id, season, episode),
+                "embed_url": get_videasy_tv_embed_url(tmdb_id, season, episode),
                 "player_url": get_tv_player_url(tmdb_id, season, episode),
-            }
+            },
+            {
+                "server": "vidking",
+                "name": "Server 2",
+                "quality": "auto",
+                "embed_url": get_vidking_tv_embed_url(tmdb_id, season, episode),
+                "player_url": get_tv_player_url(tmdb_id, season, episode),
+            },
         ],
     }
     await redis_client.setex(cache_key, 3600, json.dumps(result))
     return result
-
 
 async def get_tv_seasons(tmdb_id: int) -> dict | None:
     cache_key = f"stream:seasons:{tmdb_id}"
@@ -167,9 +210,8 @@ async def _fetch_season_detail(tmdb_id: int, season_number: int) -> dict | None:
         logger.warning(f"Failed to fetch season {season_number} for {tmdb_id}: {e}")
         return None
 
-
 async def get_movie_info(tmdb_id: int) -> dict | None:
-    cache_key = f"stream:info:movie:{tmdb_id}"
+    cache_key = f"stream:info:movie:{tmdb_id}:v2"
     cached = await redis_client.get(cache_key)
     if cached:
         data = json.loads(cached)
@@ -188,10 +230,20 @@ async def get_movie_info(tmdb_id: int) -> dict | None:
         resp.raise_for_status()
         movie = resp.json()
 
-        directors = [c["name"] for c in movie.get("credits", {}).get("crew", []) if c.get("job") == "Director"][:2]
-        cast = [{"name": a["name"], "character": a.get("character", "")} for a in movie.get("credits", {}).get("cast", [])[:6]]
+        directors = [
+            c["name"]
+            for c in movie.get("credits", {}).get("crew", [])
+            if c.get("job") == "Director"
+        ][:2]
+        cast = [
+            {"name": a["name"], "character": a.get("character", "")}
+            for a in movie.get("credits", {}).get("cast", [])[:6]
+        ]
 
-        trailers = [v for v in movie.get("videos", {}).get("results", []) if v.get("type") == "Trailer" and v.get("site") == "YouTube"]
+        trailers = [
+            v for v in movie.get("videos", {}).get("results", [])
+            if v.get("type") == "Trailer" and v.get("site") == "YouTube"
+        ]
         trailer_key = trailers[0]["key"] if trailers else None
 
         result = {
@@ -210,7 +262,11 @@ async def get_movie_info(tmdb_id: int) -> dict | None:
             "cast": cast,
             "trailer_key": trailer_key,
             "player_url": get_movie_player_url(tmdb_id),
-            "embed_url": get_movie_embed_url(tmdb_id),
+            "embed_url": get_videasy_movie_embed_url(tmdb_id),
+            "servers": {
+                "videasy": get_videasy_movie_embed_url(tmdb_id),
+                "vidking": get_vidking_movie_embed_url(tmdb_id),
+            },
         }
         await redis_client.setex(cache_key, 86400, json.dumps(result))
         return result
@@ -220,7 +276,7 @@ async def get_movie_info(tmdb_id: int) -> dict | None:
 
 
 async def get_tv_info(tmdb_id: int) -> dict | None:
-    cache_key = f"stream:info:tv:{tmdb_id}"
+    cache_key = f"stream:info:tv:{tmdb_id}:v2"
     cached = await redis_client.get(cache_key)
     if cached:
         data = json.loads(cached)
@@ -239,10 +295,16 @@ async def get_tv_info(tmdb_id: int) -> dict | None:
         resp.raise_for_status()
         show = resp.json()
 
-        cast = [{"name": a["name"], "character": a.get("character", "")} for a in show.get("credits", {}).get("cast", [])[:6]]
+        cast = [
+            {"name": a["name"], "character": a.get("character", "")}
+            for a in show.get("credits", {}).get("cast", [])[:6]
+        ]
         creators = [c["name"] for c in show.get("created_by", [])][:3]
 
-        trailers = [v for v in show.get("videos", {}).get("results", []) if v.get("type") == "Trailer" and v.get("site") == "YouTube"]
+        trailers = [
+            v for v in show.get("videos", {}).get("results", [])
+            if v.get("type") == "Trailer" and v.get("site") == "YouTube"
+        ]
         trailer_key = trailers[0]["key"] if trailers else None
 
         result = {
@@ -264,7 +326,11 @@ async def get_tv_info(tmdb_id: int) -> dict | None:
             "cast": cast,
             "trailer_key": trailer_key,
             "player_url": get_tv_player_url(tmdb_id),
-            "embed_url": get_tv_embed_url(tmdb_id, 1, 1),
+            "embed_url": get_videasy_tv_embed_url(tmdb_id, 1, 1),
+            "servers": {
+                "videasy": get_videasy_tv_embed_url(tmdb_id, 1, 1),
+                "vidking": get_vidking_tv_embed_url(tmdb_id, 1, 1),
+            },
         }
         await redis_client.setex(cache_key, 86400, json.dumps(result))
         return result
@@ -305,11 +371,13 @@ async def save_progress(
     return data
 
 
-async def get_progress(user_id: int, media_id: int, media_type: str = "movie", season: int | None = None, episode: int | None = None) -> dict | None:
+async def get_progress(
+    user_id: int, media_id: int, media_type: str = "movie",
+    season: int | None = None, episode: int | None = None,
+) -> dict | None:
     key = f"progress:{user_id}:{media_type}:{media_id}"
     if media_type == "tv" and season is not None and episode is not None:
         key = f"progress:{user_id}:tv:{media_id}:{season}:{episode}"
-
     cached = await redis_client.get(key)
     if cached:
         return json.loads(cached)

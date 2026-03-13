@@ -22,6 +22,7 @@ PING_INTERVAL: int = int(os.environ.get("PING_INTERVAL", 300))
 ENVIRONMENT: str = os.environ.get("ENVIRONMENT", "production")
 STATUS_SECRET: str = os.environ.get("STATUS_SECRET", "")
 FRONTEND_URL: str = os.environ.get("FRONTEND_URL", "https://cinebrainplayer.vercel.app")
+VIDEASY_BASE: str = os.environ.get("VIDEASY_BASE_URL", "https://player.videasy.net")
 VIDKING_BASE: str = os.environ.get("VIDKING_BASE_URL", "https://www.vidking.net")
 
 START_TIME: float = time.time()
@@ -180,22 +181,40 @@ def detailed_status():
 
 @app.route("/embed/movie/<int:tmdb_id>")
 def embed_movie(tmdb_id: int):
-    color = request.args.get("color", "e50914")
-    autoplay = request.args.get("autoPlay", "true")
-    url = f"{VIDKING_BASE}/embed/movie/{tmdb_id}?color={color}&autoPlay={autoplay}"
     from flask import redirect
+    server = request.args.get("server", "videasy")
+    color = request.args.get("color", "e50914")
+
+    if server == "vidking":
+        autoplay = request.args.get("autoPlay", "true")
+        url = f"{VIDKING_BASE}/embed/movie/{tmdb_id}?color={color}&autoPlay={autoplay}"
+    else:
+        overlay = request.args.get("overlay", "true")
+        url = f"{VIDEASY_BASE}/movie/{tmdb_id}?color={color}&overlay={overlay}"
+
     return redirect(url)
 
 
 @app.route("/embed/tv/<int:tmdb_id>/<int:season>/<int:episode>")
 def embed_tv(tmdb_id: int, season: int, episode: int):
-    color = request.args.get("color", "e50914")
-    autoplay = request.args.get("autoPlay", "true")
-    url = (
-        f"{VIDKING_BASE}/embed/tv/{tmdb_id}/{season}/{episode}"
-        f"?color={color}&autoPlay={autoplay}&nextEpisode=true&episodeSelector=true"
-    )
     from flask import redirect
+    server = request.args.get("server", "videasy")
+    color = request.args.get("color", "e50914")
+
+    if server == "vidking":
+        autoplay = request.args.get("autoPlay", "true")
+        url = (
+            f"{VIDKING_BASE}/embed/tv/{tmdb_id}/{season}/{episode}"
+            f"?color={color}&autoPlay={autoplay}"
+            f"&nextEpisode=true&episodeSelector=true"
+        )
+    else:
+        url = (
+            f"{VIDEASY_BASE}/tv/{tmdb_id}/{season}/{episode}"
+            f"?color={color}&nextEpisode=true"
+            f"&autoplayNextEpisode=true&episodeSelector=true&overlay=true"
+        )
+
     return redirect(url)
 
 
@@ -324,7 +343,7 @@ def start_server() -> threading.Thread:
 def start_self_ping() -> threading.Thread | None:
     base_url = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("STATUS_URL")
     if not base_url:
-        logger.warning("⚠️  RENDER_EXTERNAL_URL / STATUS_URL not set — self‑ping disabled")
+        logger.warning("⚠️  RENDER_EXTERNAL_URL / STATUS_URL not set — self-ping disabled")
         return None
 
     ping_url = f"{base_url.rstrip('/')}/health"
@@ -335,12 +354,12 @@ def start_self_ping() -> threading.Thread | None:
             try:
                 req = urllib.request.Request(ping_url, method="GET")
                 with urllib.request.urlopen(req, timeout=10) as resp:
-                    logger.info("🏓 Self‑ping → %d", resp.status)
+                    logger.info("🏓 Self-ping → %d", resp.status)
             except Exception as exc:
-                logger.warning("🏓 Self‑ping failed: %s", exc)
+                logger.warning("🏓 Self-ping failed: %s", exc)
             time.sleep(PING_INTERVAL)
 
     thread = threading.Thread(target=_loop_fn, daemon=True, name="SelfPing")
     thread.start()
-    logger.info("🏓 Self‑ping target: %s  (every %ds)", ping_url, PING_INTERVAL)
+    logger.info("🏓 Self-ping target: %s  (every %ds)", ping_url, PING_INTERVAL)
     return thread
