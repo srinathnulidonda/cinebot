@@ -3,9 +3,28 @@ import logging
 from telegram.ext import ContextTypes
 from bot.models.engine import get_session
 from bot.models.user import UserRepo
-from bot.utils.constants import MSG_EXPIRY_WARNING, MSG_EXPIRED, E_WARN, E_KEY
+from bot.utils.constants import MSG_EXPIRY_WARNING, MSG_EXPIRED, E_KEY
+from bot.utils.retry import db_retry
 
 logger = logging.getLogger(__name__)
+
+
+@db_retry(attempts=3, delay=2.0)
+async def _fetch_expiring(days_ahead: int):
+    async with get_session() as session:
+        return await UserRepo.get_expiring_subscriptions(session, days_ahead)
+
+
+@db_retry(attempts=3, delay=2.0)
+async def _fetch_expired():
+    async with get_session() as session:
+        return await UserRepo.get_expired_pro_users(session)
+
+
+@db_retry(attempts=2, delay=1.5)
+async def _downgrade_user(telegram_id: int):
+    async with get_session() as session:
+        await UserRepo.downgrade_to_free(session, telegram_id)
 
 
 async def subscription_expiry_job(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -17,8 +36,11 @@ async def subscription_expiry_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 async def _send_expiry_warnings(context: ContextTypes.DEFAULT_TYPE) -> None:
     sent = 0
     for days_ahead in [3, 1]:
-        async with get_session() as session:
-            users = await UserRepo.get_expiring_subscriptions(session, days_ahead)
+        try:
+            users = await _fetch_expiring(days_ahead)
+        except Exception as e:
+            logger.error("Failed to fetch expiring users (%dd) after retries: %s", days_ahead, e)
+            continue
 
         for user in users:
             try:
@@ -28,13 +50,13 @@ async def _send_expiry_warnings(context: ContextTypes.DEFAULT_TYPE) -> None:
                 if already_warned:
                     continue
 
-                expires_date = user.subscription_expires_at.strftime("%B %d, %Y") if user.subscription_expires_at else "soon"
+                expires_date = (
+                    user.subscription_expires_at.strftime("%B %d, %Y")
+                    if user.subscription_expires_at else "soon"
+                )
                 text = MSG_EXPIRY_WARNING.format(days=days_ahead, date=expires_date)
-
                 if days_ahead == 1:
-                    text += (
-                        f"\n\n{E_KEY} Use /redeem with a new key to extend your subscription!"
-                    )
+                    text += f"\n\n{E_KEY} Use /redeem with a new key to extend your subscription!"
 
                 await context.bot.send_message(
                     user.telegram_id, text, parse_mode="HTML",
@@ -49,21 +71,21 @@ async def _send_expiry_warnings(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def _downgrade_expired(context: ContextTypes.DEFAULT_TYPE) -> None:
     downgraded = 0
-    async with get_session() as session:
-        expired_users = await UserRepo.get_expired_pro_users(session)
+    try:
+        expired_users = await _fetch_expired()
+    except Exception as e:
+        logger.error("Failed to fetch expired users after retries: %s", e)
+        return
 
     for user in expired_users:
         try:
-            async with get_session() as session:
-                await UserRepo.downgrade_to_free(session, user.telegram_id)
-
+            await _downgrade_user(user.telegram_id)
             try:
                 await context.bot.send_message(
                     user.telegram_id, MSG_EXPIRED, parse_mode="HTML",
                 )
             except Exception:
                 pass
-
             downgraded += 1
             logger.info(f"Downgraded user {user.telegram_id} to FREE")
         except Exception as e:

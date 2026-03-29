@@ -148,7 +148,7 @@ MSG_HELP = (
     f"  {E_BELL} /alerts — Release alerts\n"
     f"  {E_PHONE} /contact — Support\n\n"
     f"{LINE_LIGHT}\n"
-    "💡 <b>Inline:</b> Type <code>@YourBot movie</code> in any chat"
+    "💡 <b>Inline:</b> Type <code>@cinebrainbot movie</code> in any chat"
 )
 
 MSG_ONBOARDING_GENRES = (

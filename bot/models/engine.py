@@ -14,8 +14,13 @@ engine = create_async_engine(
     pool_size=_settings.DB_POOL_SIZE,
     max_overflow=_settings.DB_MAX_OVERFLOW,
     pool_pre_ping=True,
-    pool_recycle=_settings.DB_POOL_RECYCLE,
+    pool_recycle=min(_settings.DB_POOL_RECYCLE, 300),   # ← cap at 5 min for Render
+    pool_timeout=30,
     echo=False,
+    connect_args={
+        "timeout": 10,              # ← asyncpg: fail fast on connect, don't hang
+        "command_timeout": 30,       # ← asyncpg: per-query timeout
+    },
 )
 
 AsyncSessionFactory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -76,6 +81,9 @@ async def init_db():
         _settings.REDIS_URL,
         decode_responses=True,
         max_connections=20,
+        socket_connect_timeout=5,
+        socket_keepalive=True,
+        retry_on_timeout=True,
     )
     await redis_client.ping()
     logger.info("Redis connected on bot event loop")
